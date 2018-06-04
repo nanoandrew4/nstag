@@ -7,33 +7,27 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayDeque;
 
-public class Main {
-	public static void main(String... args) {
-		BufferedImage ogImage;
+public class NStagIMG {
+
+	public static void encode(String origPath, String fileToEncode, String outName, int bitsToUse) {
+		byte[] bytes;
+		BufferedImage original;
 		try {
-			ogImage = ImageIO.read(new File("/home/nanoandrew4/IdeaProjects/nstag/test.png"));
-			byte[] bytes = Files.readAllBytes(Paths.get("/home/nanoandrew4/IdeaProjects/nstag/text.txt"));
-			encode(ogImage, 1, bytes);
+			original = ImageIO.read(new File(origPath));
+			bytes = Files.readAllBytes(Paths.get(fileToEncode));
 		} catch (IOException e) {
 			e.printStackTrace();
 			return;
 		}
-
-		try {
-			BufferedImage encImage = ImageIO.read(new File("/home/nanoandrew4/IdeaProjects/nstag/out.png"));
-			decode(encImage, "outtext.txt");
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-
-		System.out.println("You can fit: " + (ogImage.getWidth() * ogImage.getHeight() * 4) + " bits, using only the least significant bit");
-	}
-
-	private static void encode(BufferedImage original, int bitsToUse, byte[] bytes) {
-		if (bytes.length * 8 > original.getWidth() * original.getHeight() * bitsToUse) {
-			System.out.println("Not enough space in image, consider allowing more bits");
+		if (bytes.length * 8 > original.getWidth() * original.getHeight() * bitsToUse * 4) {
+			System.err.println("Not enough space in image, consider allowing more bits");
+			System.err.println("Required bits: " + (bytes.length * 8));
+			System.err.println("Available bits: "+ (original.getWidth() * original.getHeight() * bitsToUse * 4));
 			return;
 		}
+
+		System.out.print("Encoding... ");
+		Spinner.spin();
 
 		ArrayDeque<Integer> bits = new ArrayDeque<>();
 		int[] bitsArr;
@@ -62,8 +56,9 @@ public class Main {
 			}
 
 		try {
-			ImageIO.write(out, "png", new File("/home/nanoandrew4/IdeaProjects/nstag/out.png"));
-			System.out.println("Image written, data encoded successfully");
+			ImageIO.write(out, "png", new File(outName));
+			Spinner.spin();
+			System.out.println("Data encoded successfully into image: \"" + outName + "\"\n\n");
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -75,7 +70,7 @@ public class Main {
 		int[] gBits = getBits(((orig >> 8) & 0xff), 8);
 		int[] bBits = getBits((orig & 0xff), 8);
 
-		for (int bit = 0; bit < bitsToUse; bit++) {
+		for (int bit = 0; bit < bitsToUse && !bits.isEmpty(); bit++) {
 			aBits[7 - bit] = bits.pop();
 			rBits[7 - bit] = bits.pop();
 			gBits[7 - bit] = bits.pop();
@@ -102,7 +97,18 @@ public class Main {
 		return b;
 	}
 
-	private static void decode(BufferedImage encoded, String fileName) {
+	public static void decode(String encodedPath, String outFileName) {
+		BufferedImage encoded;
+		try {
+			encoded = ImageIO.read(new File(encodedPath));
+		} catch (IOException e) {
+			e.printStackTrace();
+			return;
+		}
+
+		System.out.print("Decoding... ");
+		Spinner.spin();
+
 		int[] imgSize = new int[32];
 		for (int i = 0; i < 8; i++) {
 			int p = encoded.getRGB(i, 0);
@@ -133,9 +139,11 @@ public class Main {
 		}
 
 		try {
-			FileOutputStream fos = new FileOutputStream(fileName);
+			FileOutputStream fos = new FileOutputStream(outFileName);
 			fos.write(decodedBytes);
 			fos.close();
+			Spinner.spin();
+			System.out.println("Data decoded successfully into file: \"" + outFileName + "\"\n\n");
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
