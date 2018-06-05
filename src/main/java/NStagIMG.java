@@ -22,7 +22,7 @@ public class NStagIMG {
 		if (bytes.length * 8 > original.getWidth() * original.getHeight() * bitsToUse * 4) {
 			System.err.println("Not enough space in image, consider allowing more bits");
 			System.err.println("Required bits: " + (bytes.length * 8));
-			System.err.println("Available bits: "+ (original.getWidth() * original.getHeight() * bitsToUse * 4));
+			System.err.println("Available bits: " + (original.getWidth() * original.getHeight() * bitsToUse * 4));
 			return;
 		}
 
@@ -82,18 +82,25 @@ public class NStagIMG {
 
 	private static int[] getBits(int b, int numOfBits) {
 		int[] bits = new int[numOfBits];
-		for (int i = 0; i < numOfBits && b > 0; i++) {
-			bits[numOfBits - 1 - i] = b % 2;
+		boolean signed = b < 0;
+		if (signed) {
+			b = ~b;
+			bits[0] = 1;
+		}
+
+		for (int i = 0; i < numOfBits - 1; i++) {
+			bits[numOfBits - 1 - i] = (b + (signed ? 1 : 0)) % 2;
 			b >>>= 1;
 		}
 		return bits;
 	}
 
 	private static int toByte(int[] bits) {
-		int b = 0;
-		for (int i = bits.length - 1; i >= 0; i--)
-			if (bits[bits.length - 1 - i] != 0)
-				b += Math.pow(2, i);
+		boolean signed = bits[0] == 1;
+		int b = signed ? -128 : 0;
+		for (int i = (signed ? 1 : 0); i < bits.length; i++)
+			if (bits[i] != 0)
+				b += Math.pow(2, bits.length - 1 - i);
 		return b;
 	}
 
@@ -132,6 +139,7 @@ public class NStagIMG {
 			for (int i = j == 0 ? 9 : 0; i < encoded.getWidth() && (i + j * encoded.getWidth() - 9) * 4 < bitsInImage; i++) {
 				extractDataFromPixel(encoded.getRGB(i, j), bitsPerPixel, bits);
 			}
+
 		byte[] decodedBytes = new byte[bits.size() / 8];
 		for (int b = 0; b < decodedBytes.length; b++) {
 			int[] byteBits = {bits.pop(), bits.pop(), bits.pop(), bits.pop(), bits.pop(), bits.pop(), bits.pop(), bits.pop()};

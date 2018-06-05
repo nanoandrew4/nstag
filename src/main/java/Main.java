@@ -5,7 +5,6 @@ public class Main {
 
 		int opt;
 		while (true) {
-
 			Scanner in = new Scanner(System.in);
 			System.out.println("Welcome to nstag - A program that hides files inside images");
 			System.out.println("Choose one of the following:");
@@ -19,6 +18,7 @@ public class Main {
 			} while (opt < 0 || opt > 2);
 
 			in.nextLine();
+
 
 			switch (opt) {
 				case 1:
