@@ -1,3 +1,4 @@
+package nstag;
 
 /**
  * Simple spinning icon made out of characters. Used while program is running long computations, so the user
