@@ -1,6 +1,18 @@
 package nstag;
 
+import com.google.crypto.tink.Aead;
+import com.google.crypto.tink.KeysetHandle;
+import com.google.crypto.tink.aead.AeadFactory;
+import com.google.crypto.tink.aead.AeadKeyTemplates;
+
+import java.security.GeneralSecurityException;
+import java.util.Scanner;
+
 public abstract class nStag {
+	protected Scanner in = new Scanner(System.in);
+
+	protected String origPath, fileToHide, outPath;
+
 	/**
 	 * Converts a decimal number into an array of bits. Can handle both signed and unsigned binary numbers.
 	 *
@@ -44,5 +56,64 @@ public abstract class nStag {
 			if (bits[i] != 0)
 				b += Math.pow(2, bits.length - 1 - i);
 		return b;
+	}
+
+	protected void requestInput(String fileType, boolean encode) {
+		if (encode)
+			System.out.print("Path to " + fileType + " to hide data in: ");
+		else
+			System.out.print("Path to " + fileType + " to decode data from: ");
+		origPath = in.nextLine();
+		if (encode) {
+			System.out.print("Path to file to be hidden: ");
+			fileToHide = in.nextLine();
+		}
+		if (encode)
+			System.out.print("Desired path and filename (with extension) for output " + fileType + ": ");
+		else
+			System.out.print("Desired path and filename (with extension) for output decoded file: ");
+		outPath = in.nextLine();
+	}
+
+	protected byte[] offerToEncrypt(byte[] bytes) {
+		System.out.print("Do you want to encrypt the data? Y/N: ");
+		String ans = in.nextLine();
+
+		if ("y".equalsIgnoreCase(ans)) {
+			KeysetHandle keysetHandle;
+			Aead aead;
+			try {
+				keysetHandle = KeysetHandle.generateNew(AeadKeyTemplates.AES128_GCM);
+				aead = AeadFactory.getPrimitive(keysetHandle);
+
+				System.out.print("Please enter the password to use: ");
+				return aead.encrypt(bytes, in.nextLine().getBytes());
+			} catch (GeneralSecurityException e) {
+				e.printStackTrace();
+			}
+		}
+
+		return null;
+	}
+
+	protected byte[] offerToDecrypt(byte[] bytes) {
+		System.out.print("Is this file encrypted? Y/N: ");
+		String ans = in.nextLine();
+
+		if ("y".equalsIgnoreCase(ans)) {
+			KeysetHandle keysetHandle;
+			Aead aead;
+			try {
+				keysetHandle = KeysetHandle.generateNew(AeadKeyTemplates.AES128_GCM);
+				aead = AeadFactory.getPrimitive(keysetHandle);
+
+				System.out.print("Please enter the password: ");
+				return aead.decrypt(bytes, in.nextLine().getBytes());
+			} catch (GeneralSecurityException e) {
+				e.printStackTrace();
+			}
+		}
+
+		return null;
 	}
 }

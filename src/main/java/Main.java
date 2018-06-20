@@ -1,10 +1,17 @@
+import com.google.crypto.tink.Config;
+import com.google.crypto.tink.aead.AeadConfig;
 import nstag.nStagImg;
-import nstag.nStagMp3;
 
+import java.security.GeneralSecurityException;
 import java.util.Scanner;
 
 public class Main {
 	public static void main(String... args) {
+		try {
+			Config.register(AeadConfig.TINK_1_1_0);
+		} catch (GeneralSecurityException e) {
+			e.printStackTrace();
+		}
 
 		int opt;
 		while (true) {
@@ -13,13 +20,12 @@ public class Main {
 			System.out.println("Choose one of the following:");
 			System.out.println("1. Encode a file inside an image");
 			System.out.println("2. Decode a file from an image");
-			System.out.println("3. Encode a file inside an MP3");
 			System.out.println("0. Exit nstag");
 			System.out.print("\n>> ");
 
 			do {
 				opt = in.nextInt();
-			} while (opt < 0 || opt > 3);
+			} while (opt < 0 || opt > 2);
 
 			in.nextLine();
 
@@ -47,16 +53,6 @@ public class Main {
 					System.out.print("Path to file in which to save decoded data (with appropriate extension): ");
 					outFilePath = in.nextLine();
 					nStagImg.decode(encodedImgPath, outFilePath);
-					break;
-				case 3:
-					String origMP3Path, outAudPath;
-					System.out.print("Path to MP3 to hide data in: ");
-					origMP3Path = in.nextLine();
-					System.out.print("Path to file to be hidden: ");
-					fileToHide = in.nextLine();
-					System.out.print("Desired path and filename (with extension) for output MP3: ");
-					outAudPath = in.nextLine();
-					nStagMp3.encode(origMP3Path, fileToHide, outAudPath);
 					break;
 				default:
 					return;
