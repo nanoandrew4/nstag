@@ -49,7 +49,7 @@ public class nStagImg extends nStag {
 		ArrayDeque<Integer> bits = new ArrayDeque<>();
 		int[] bitsArr;
 		for (byte aByte : bytes) {
-			bitsArr = getBits(aByte, 8, true);
+			bitsArr = intToBitArray(aByte, 8, true);
 			for (int aBitsArr : bitsArr) bits.add(aBitsArr);
 		}
 
@@ -57,26 +57,23 @@ public class nStagImg extends nStag {
 
 		// Queue of bits defining the size of the encoded file, and the number of bits taken in each channel
 		ArrayDeque<Integer> encodingData = new ArrayDeque<>();
-		int[] fileSizeBitsArr = getBits(bits.size(), 32, false); // File size bits
+		int[] fileSizeBitsArr = intToBitArray(bits.size(), 32, false); // File size bits
 		for (int aFileSizeBitsArr : fileSizeBitsArr) encodingData.add(aFileSizeBitsArr);
-		int[] bitsUsedArr = getBits(bitsPerChannel, 4, false); // BIts per channel bits
+		int[] bitsUsedArr = intToBitArray(bitsPerChannel, 4, false); // Bits per channel
 		for (int aBitsUsedArr : bitsUsedArr) encodingData.add(aBitsUsedArr);
 
-		/*
-		 * Encode file size and number of bits per channel into pixels. Each pixel has 4 channels, which means the
-		 * number of bits that can be encoded into each pixel is 4 * (bits per channel)
-		 */
-		for (int b = 0; b < 9; b++)
-			out.setRGB(b, 0, insertDataToPixel(original.getRGB(b, 0), 1, encodingData));
+		encodingData.addAll(bits);
+
+		offerToEncrypt(bits);
 
 		/*
 		 * Write file bits to least significant bits of original image, until all have been written. Then just copy
 		 * pixels from the original image until done.
 		 */
 		for (int j = 0; j < original.getHeight(); j++)
-			for (int i = j == 0 ? 9 : 0; i < original.getWidth(); i++) {
+			for (int i = 0; i < original.getWidth(); i++) {
 				if (bits.size() > 0)
-					out.setRGB(i, j, insertDataToPixel(original.getRGB(i, j), bitsPerChannel, bits));
+					out.setRGB(i, j, insertDataToPixel(original.getRGB(i, j), bitsPerChannel, encodingData));
 				else
 					out.setRGB(i, j, original.getRGB(i, j));
 			}
@@ -100,10 +97,10 @@ public class nStagImg extends nStag {
 	 * @return Modified 32-bit argb int representing the new color of the pixel
 	 */
 	private static int insertDataToPixel(int orig, int bitsToUse, ArrayDeque<Integer> bits) {
-		int[] aBits = getBits(((orig >> 24) & 0xff), 8, false); // Get alpha bits
-		int[] rBits = getBits(((orig >> 16) & 0xff), 8, false); // Get red bits
-		int[] gBits = getBits(((orig >> 8) & 0xff), 8, false); // Get green bits
-		int[] bBits = getBits((orig & 0xff), 8, false); // Get blue bits
+		int[] aBits = intToBitArray(((orig >> 24) & 0xff), 8, false); // Get alpha bits
+		int[] rBits = intToBitArray(((orig >> 16) & 0xff), 8, false); // Get red bits
+		int[] gBits = intToBitArray(((orig >> 8) & 0xff), 8, false); // Get green bits
+		int[] bBits = intToBitArray((orig & 0xff), 8, false); // Get blue bits
 
 		// Write file bits to least significant bits of each channel (last array position)
 		for (int bit = 0; bit < bitsToUse && !bits.isEmpty(); bit++) {
@@ -114,8 +111,8 @@ public class nStagImg extends nStag {
 		}
 
 		// Return 32-bit int representing the color of the pixel, with some relevant bits stored in it
-		return (toByte(aBits, false) << 24) | (toByte(rBits, false) << 16)
-				| (toByte(gBits, false) << 8) | toByte(bBits, false);
+		return ((int) bitArrayToLong(aBits, false) << 24) | (int) (bitArrayToLong(rBits, false) << 16)
+				| (int) (bitArrayToLong(gBits, false) << 8) | (int) bitArrayToLong(bBits, false);
 	}
 
 	/**
@@ -146,21 +143,21 @@ public class nStagImg extends nStag {
 		int[] imgSize = new int[32];
 		for (int i = 0; i < 8; i++) {
 			int p = encoded.getRGB(i, 0);
-			imgSize[i * 4] = getBits(((p >> 24) & 0xff), 8, false)[7];
-			imgSize[i * 4 + 1] = getBits(((p >> 16) & 0xff), 8, false)[7];
-			imgSize[i * 4 + 2] = getBits(((p >> 8) & 0xff), 8, false)[7];
-			imgSize[i * 4 + 3] = getBits((p & 0xff), 8, false)[7];
+			imgSize[i * 4] = intToBitArray(((p >> 24) & 0xff), 8, false)[7];
+			imgSize[i * 4 + 1] = intToBitArray(((p >> 16) & 0xff), 8, false)[7];
+			imgSize[i * 4 + 2] = intToBitArray(((p >> 8) & 0xff), 8, false)[7];
+			imgSize[i * 4 + 3] = intToBitArray((p & 0xff), 8, false)[7];
 		}
-		int bitsInImage = toByte(imgSize, false); // File size in bits
+		int bitsInImage = (int) bitArrayToLong(imgSize, false); // File size in bits
 
 		// Decodes number of bits that are stored in each channel
 		int[] bitsEncoded = new int[4];
 		int p = encoded.getRGB(8, 0);
-		bitsEncoded[0] = getBits(((p >> 24) & 0xff), 8, false)[7];
-		bitsEncoded[1] = getBits(((p >> 16) & 0xff), 8, false)[7];
-		bitsEncoded[2] = getBits(((p >> 8) & 0xff), 8, false)[7];
-		bitsEncoded[3] = getBits((p & 0xff), 8, false)[7];
-		int bitsPerPixel = toByte(bitsEncoded, false);
+		bitsEncoded[0] = intToBitArray(((p >> 24) & 0xff), 8, false)[7];
+		bitsEncoded[1] = intToBitArray(((p >> 16) & 0xff), 8, false)[7];
+		bitsEncoded[2] = intToBitArray(((p >> 8) & 0xff), 8, false)[7];
+		bitsEncoded[3] = intToBitArray((p & 0xff), 8, false)[7];
+		int bitsPerPixel = (int) bitArrayToLong(bitsEncoded, false);
 
 		/*
 		 * Decodes all bits from image, until file is fully recovered. Because the first 9 pixels store encoding data,
@@ -179,14 +176,16 @@ public class nStagImg extends nStag {
 		byte[] decodedBytes = new byte[bits.size() / 8];
 		for (int b = 0; b < decodedBytes.length; b++) {
 			int[] byteBits = {bits.pop(), bits.pop(), bits.pop(), bits.pop(), bits.pop(), bits.pop(), bits.pop(), bits.pop()};
-			decodedBytes[b] = (byte) toByte(byteBits, true);
+			decodedBytes[b] = (byte) bitArrayToLong(byteBits, true);
 		}
+
+		Spinner.spin();
+		decodedBytes = offerToDecrypt(decodedBytes);
 
 		try {
 			FileOutputStream fos = new FileOutputStream(outFileName);
 			fos.write(decodedBytes);
 			fos.close();
-			Spinner.spin();
 			System.out.println("Data decoded successfully into file: \"" + outFileName + "\"\n\n");
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -202,10 +201,10 @@ public class nStagImg extends nStag {
 	 * @param bits      ArrayDeque of bits to which to write the decoded data from this pixel
 	 */
 	private static void extractDataFromPixel(int orig, int bitsToUse, ArrayDeque<Integer> bits) {
-		int[] aBits = getBits(((orig >> 24) & 0xff), 8, false); // Get alpha channel value
-		int[] rBits = getBits(((orig >> 16) & 0xff), 8, false); // Get red channel value
-		int[] gBits = getBits(((orig >> 8) & 0xff), 8, false); // Get green channel value
-		int[] bBits = getBits((orig & 0xff), 8, false); // Get blue channel value
+		int[] aBits = intToBitArray(((orig >> 24) & 0xff), 8, false); // Get alpha channel value
+		int[] rBits = intToBitArray(((orig >> 16) & 0xff), 8, false); // Get red channel value
+		int[] gBits = intToBitArray(((orig >> 8) & 0xff), 8, false); // Get green channel value
+		int[] bBits = intToBitArray((orig & 0xff), 8, false); // Get blue channel value
 
 		// Write least significant bit(s) from the color channels to the queue of bits to recover the encoded file
 		for (int bit = 0; bit < bitsToUse; bit++) {

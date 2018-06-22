@@ -1,8 +1,17 @@
-import com.google.crypto.tink.Config;
+import com.google.crypto.tink.*;
 import com.google.crypto.tink.aead.AeadConfig;
+import com.google.crypto.tink.aead.AeadFactory;
+import com.google.crypto.tink.aead.AeadKeyTemplates;
+import nstag.nStag;
 import nstag.nStagImg;
 
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
+import java.util.ArrayList;
 import java.util.Scanner;
 
 public class Main {
