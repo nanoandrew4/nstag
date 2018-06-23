@@ -1,9 +1,6 @@
 package nstag;
 
-import com.google.crypto.tink.Aead;
-import com.google.crypto.tink.BinaryKeysetWriter;
-import com.google.crypto.tink.CleartextKeysetHandle;
-import com.google.crypto.tink.KeysetHandle;
+import com.google.crypto.tink.*;
 import com.google.crypto.tink.aead.AeadFactory;
 import com.google.crypto.tink.aead.AeadKeyTemplates;
 import com.lambdaworks.crypto.SCryptUtil;
@@ -11,7 +8,6 @@ import com.lambdaworks.crypto.SCryptUtil;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
-import java.util.ArrayDeque;
 import java.util.Scanner;
 import java.util.Stack;
 
@@ -20,6 +16,9 @@ public abstract class nStag {
 
 	protected static String origPath, fileToHide, outPath;
 
+//	final static int KEY_SIZE_BITS = 2 * 8; // Short, max ~65k
+	static int KEY_BITS_COUNT = 92 * 8;
+	final static int SIZE_BITS_COUNT = 4 * 8;
 	final static int ENCRYPT_OVERHEAD_BITS = 33 * 8;
 
 	/**
@@ -95,7 +94,7 @@ public abstract class nStag {
 		byte[] encryptedData;
 
 		try {
-			keysetHandle = KeysetHandle.generateNew(AeadKeyTemplates.AES256_GCM);
+			keysetHandle = KeysetHandle.generateNew(AeadKeyTemplates.AES128_GCM);
 			Aead aead = AeadFactory.getPrimitive(keysetHandle);
 
 			// Generate password hash to be used to encrypt the data
@@ -104,36 +103,33 @@ public abstract class nStag {
 			System.out.println("Scrypt hash: " + pass);
 
 			// Encrypt data and generate seed for scrambling the bits later
-			System.out.println("Orig size: " + bitsToEncrypt.length);
 			encryptedData = aead.encrypt(bitsToEncrypt, pass.getBytes());
-			System.out.println("Encrypt size: " + encryptedData.length);
 		} catch (GeneralSecurityException e) {
 			System.err.println("Encryption failed, aborting...");
 			return bitsToEncrypt;
 		}
 
 		// Writes key to start of bit array, after encryption, otherwise decrypting the data would not be possible
-		bitsToEncrypt = writeKeyToBitDeque(encryptedData, keysetHandle);
+		bitsToEncrypt = writeKeyToBitDeque(encryptedData, keysetHandle, dataStartPos);
 		if (bitsToEncrypt == null)
 			return null;
-
-//		int encBitPos = 0;
-//		for (byte encByte : encryptedData) {
-//			int[] encBits = intToBitArray(encByte, 8, true);
-//			for (int b : encBits)
-//				bitsToEncrypt[dataStartPos + encBitPos++] = ((byte) b);
-//		}
 
 		return bitsToEncrypt;
 	}
 
-	private static byte[] writeKeyToBitDeque(byte[] bitsToEncrypt, KeysetHandle keysetHandle) {
+	private static byte[] writeKeyToBitDeque(byte[] bitsToEncrypt, KeysetHandle keysetHandle, int dataStartPos) {
 		try {
 			byte[] key;
 			ByteArrayOutputStream baos = new ByteArrayOutputStream();
 			CleartextKeysetHandle.write(keysetHandle, BinaryKeysetWriter.withOutputStream(baos));
 			key = baos.toByteArray();
+//			KEY_BITS_COUNT = key.length * 8;
 			System.out.println("KeyLen: " + key.length);
+
+//			int[] keySizeBits = intToBitArray(KEY_BITS_COUNT, 16, false);
+//			for (int ks = 0; ks < keySizeBits.length; ks++)
+//				bitsToEncrypt[dataStartPos - KEY_BITS_COUNT - KEY_SIZE_BITS + ks] = (byte) keySizeBits[ks];
+//
 			Stack<Byte> keyBits = new Stack<>();
 
 			for (int keyByte : key) {
@@ -143,10 +139,38 @@ public abstract class nStag {
 			}
 
 			for (int i = keyBits.size() - 1; i >= 0; i--)
-				bitsToEncrypt[i] = keyBits.pop();
+				bitsToEncrypt[(dataStartPos - KEY_BITS_COUNT) + i] = keyBits.pop();
 			return bitsToEncrypt;
 		} catch (IOException e) {
 			System.err.println("Error obtaining key, no encryption will be performed, aborting...");
+			return null;
+		}
+	}
+
+	protected static byte[] offerToDecrypt(byte[] bitsToDecrypt, byte[] key) {
+		System.out.print("Is this file encrypted? Y/N: ");
+		String ans = in.nextLine();
+
+		if ("n".equalsIgnoreCase(ans))
+			return bitsToDecrypt;
+
+		System.out.print("Please enter the password to use: ");
+		String pass = SCryptUtil.scrypt(in.nextLine(), (int) Math.pow(2, 18), 16, 2);
+
+		KeysetHandle keysetHandle;
+		byte[] decryptedData;
+
+		try {
+			keysetHandle = CleartextKeysetHandle.read(BinaryKeysetReader.withBytes(key));
+			Aead aead = AeadFactory.getPrimitive(keysetHandle);
+
+			// Generate password hash to be used to encrypt the data
+			System.out.println("Scrypt hash: " + pass);
+
+			// Encrypt data and generate seed for scrambling the bits later
+			return decryptedData = aead.decrypt(bitsToDecrypt, pass.getBytes());
+		} catch (GeneralSecurityException | NullPointerException | IOException e) {
+			System.err.println("Encryption failed, aborting...");
 			return null;
 		}
 	}
@@ -181,14 +205,4 @@ public abstract class nStag {
 		return bitArrayToLong(seedBits, false);
 	}
 */
-	public static void offerToDecrypt(ArrayDeque<Integer> bitsToDecrypt) {
-		System.out.print("Is this file encrypted? Y/N: ");
-		String ans = in.nextLine();
-
-		if ("n".equalsIgnoreCase(ans))
-			return;
-
-		System.out.print("Please enter the password to use: ");
-		String pass = SCryptUtil.scrypt(in.nextLine(), (int) Math.pow(2, 18), 16, 2);
-	}
 }

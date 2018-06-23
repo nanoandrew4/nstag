@@ -11,9 +11,7 @@ import java.util.ArrayDeque;
 
 public class nStagImg extends nStag {
 
-	final static int KEY_BITS_COUNT = 92 * 8;
-	final static int SIZE_BITS_COUNT = 4 * 8;
-	final static int BITS_PER_CHANNEL_BITS = 4;
+	final static int BITS_PER_CHANNEL_BITS = 4; // Nibble
 
 	/**
 	 * Encodes a file into an image, using the least significant bit(s) in the channels of each pixel to store the data.
@@ -41,7 +39,7 @@ public class nStagImg extends nStag {
 //		}
 
 			System.out.print("Encoding... ");
-			Spinner.spin();
+//			Spinner.spin();
 
 			int fileBitSize = fileBytes.length * 8;
 
@@ -60,26 +58,21 @@ public class nStagImg extends nStag {
 			return;
 		}
 
-		Spinner.spin();
-		long start = System.currentTimeMillis();
+//		Spinner.spin();
 		bitsToEncode = offerToEncrypt(bitsToEncode, KEY_BITS_COUNT + SIZE_BITS_COUNT + BITS_PER_CHANNEL_BITS);
 		if (bitsToEncode == null) {
 			System.err.println("Error during encryption... Aborting...");
 			return;
 		}
-		System.out.println("Encrypted in: " + (System.currentTimeMillis() - start) + "ms");
-
-		ArrayDeque<Byte> encodingData = new ArrayDeque<>();
 
 		// Queue of bits defining the size of the encoded file, and the number of bits taken in each channel
-		int[] fileSizeBitsArr = intToBitArray(bitsToEncode.length, 32, false); // File size bits
-		for (int aFileSizeBitsArr : fileSizeBitsArr) encodingData.add((byte) aFileSizeBitsArr);
-		int[] bitsUsedArr = intToBitArray(bitsPerChannel, 4, false); // Bits per channel
-		for (int aBitsUsedArr : bitsUsedArr) encodingData.add((byte) aBitsUsedArr);
+		int[] fileSizeBitsArr = intToBitArray(bitsToEncode.length, SIZE_BITS_COUNT, false); // File size bits
+		for (int b = 0; b < SIZE_BITS_COUNT; b++)
+			bitsToEncode[b] = (byte) fileSizeBitsArr[b];
 
-		int pos = 0;
-		while (!encodingData.isEmpty())
-			bitsToEncode[KEY_BITS_COUNT + pos++] = encodingData.pop();
+		int[] bitsUsedArr = intToBitArray(bitsPerChannel, BITS_PER_CHANNEL_BITS, false); // Bits per channel
+		for (int b = 0; b < BITS_PER_CHANNEL_BITS; b++)
+			bitsToEncode[SIZE_BITS_COUNT + b] = (byte) bitsUsedArr[b];
 
 		// Write data to fileBits
 		BufferedImage original;
@@ -97,10 +90,10 @@ public class nStagImg extends nStag {
 		 * pixels from the original image until done.
 		 */
 
-		int bitPos = KEY_BITS_COUNT + SIZE_BITS_COUNT + BITS_PER_CHANNEL_BITS;
+		int bitPos = 0;
 		for (int j = 0; j < original.getHeight(); j++)
 			for (int i = 0; i < original.getWidth(); i++) {
-				if (encodingData.size() > 0) {
+				if (bitPos < bitsToEncode.length) {
 					out.setRGB(i, j, insertDataToPixel(original.getRGB(i, j), bitsPerChannel, bitsToEncode, bitPos));
 					bitPos += 4 * bitsPerChannel;
 				}
@@ -110,7 +103,7 @@ public class nStagImg extends nStag {
 
 		try {
 			ImageIO.write(out, "png", new File(outName));
-			Spinner.spin();
+//			Spinner.spin();
 			System.out.println("Data encoded successfully into image: \"" + outName + "\"\n\n");
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -141,8 +134,8 @@ public class nStagImg extends nStag {
 		}
 
 		// Return 32-bit int representing the color of the pixel, with some relevant bits stored in it
-		return ((int) bitArrayToLong(aBits, false) << 24) | (int) (bitArrayToLong(rBits, false) << 16)
-				| (int) (bitArrayToLong(gBits, false) << 8) | (int) bitArrayToLong(bBits, false);
+		return (((int) bitArrayToLong(aBits, false)) << 24) | ((int) (bitArrayToLong(rBits, false)) << 16)
+				| ((int) (bitArrayToLong(gBits, false)) << 8) | ((int) bitArrayToLong(bBits, false));
 	}
 
 	/**
@@ -170,8 +163,8 @@ public class nStagImg extends nStag {
 		 * File size is read from the least significant bits (last bit) of each channel value. Since each channel
 		 * has range 0-255, it can be represented as 8 bits, and only the 8th is relevant.
 		 */
-		int[] imgSize = new int[32]; // TODO: REQUIRES FULL REWRITE
-		for (int i = 0; i < 8; i++) {
+		int[] imgSize = new int[SIZE_BITS_COUNT];
+		for (int i = 0; i < SIZE_BITS_COUNT / 4; i++) {
 			int p = encoded.getRGB(i, 0);
 			imgSize[i * 4] = intToBitArray(((p >> 24) & 0xff), 8, false)[7];
 			imgSize[i * 4 + 1] = intToBitArray(((p >> 16) & 0xff), 8, false)[7];
@@ -180,14 +173,24 @@ public class nStagImg extends nStag {
 		}
 		int bitsInImage = (int) bitArrayToLong(imgSize, false); // File size in bits
 
-		// Decodes number of bits that are stored in each channel
-		int[] bitsEncoded = new int[4];
-		int p = encoded.getRGB(8, 0);
+		// Decodes number of bits that are stored in each channel, which is 4 bits in size
+		int[] bitsEncoded = new int[BITS_PER_CHANNEL_BITS];
+		int p = encoded.getRGB(8, 0); // TODO: VANQUISH MAGIC NUMBERS
 		bitsEncoded[0] = intToBitArray(((p >> 24) & 0xff), 8, false)[7];
 		bitsEncoded[1] = intToBitArray(((p >> 16) & 0xff), 8, false)[7];
 		bitsEncoded[2] = intToBitArray(((p >> 8) & 0xff), 8, false)[7];
 		bitsEncoded[3] = intToBitArray((p & 0xff), 8, false)[7];
 		int bitsPerPixel = (int) bitArrayToLong(bitsEncoded, false);
+
+//		int[] keySizeBits = new int[KEY_SIZE_BITS];
+//		for (int i = 0; i < KEY_SIZE_BITS / 8; i++) {
+//			p = encoded.getRGB(9 + i, 0);
+//			keySizeBits[i * 4] = intToBitArray(((p >> 24) & 0xff), 8, false)[7];
+//			keySizeBits[i * 4 + 1] = intToBitArray(((p >> 16) & 0xff), 8, false)[7];
+//			keySizeBits[i * 4 + 2] = intToBitArray(((p >> 8) & 0xff), 8, false)[7];
+//			keySizeBits[i * 4 + 3] = intToBitArray((p & 0xff), 8, false)[7];
+//		}
+//		int keySize = (int) bitArrayToLong(keySizeBits, false);
 
 		/*
 		 * Decodes all bits from image, until file is fully recovered. Because the first 9 pixels store encoding data,
@@ -199,10 +202,17 @@ public class nStagImg extends nStag {
 			for (int i = j == 0 ? 9 : 0; i < pxWidth && (i + j * pxWidth - 9) * 4 < bitsInImage; i++)
 				extractDataFromPixel(encoded.getRGB(i, j), bitsPerPixel, bits);
 
+		byte[] keyBits = new byte[KEY_BITS_COUNT / 8];
+		for (int b = 0; b < KEY_BITS_COUNT / 8; b++) {
+			int[] byteBits = {bits.pop(), bits.pop(), bits.pop(), bits.pop(), bits.pop(), bits.pop(), bits.pop(), bits.pop()};
+			keyBits[b] = (byte) bitArrayToLong(byteBits, true);
+		}
+
 		/*
 		 * Creates a byte array in which to store all the bits decoded from the image, and writes the bytes of the
 		 * encoded file to the array.
 		 */
+
 		byte[] decodedBytes = new byte[bits.size() / 8];
 		for (int b = 0; b < decodedBytes.length; b++) {
 			int[] byteBits = {bits.pop(), bits.pop(), bits.pop(), bits.pop(), bits.pop(), bits.pop(), bits.pop(), bits.pop()};
@@ -210,7 +220,9 @@ public class nStagImg extends nStag {
 		}
 
 		Spinner.spin();
-//		decodedBytes = offerToDecrypt(decodedBytes);
+		decodedBytes = offerToDecrypt(decodedBytes, keyBits);
+		if (decodedBytes == null)
+			return;
 
 		try {
 			FileOutputStream fos = new FileOutputStream(outFileName);
