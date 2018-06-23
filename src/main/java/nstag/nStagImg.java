@@ -11,6 +11,10 @@ import java.util.ArrayDeque;
 
 public class nStagImg extends nStag {
 
+	final static int KEY_BITS_COUNT = 92 * 8;
+	final static int SIZE_BITS_COUNT = 4 * 8;
+	final static int BITS_PER_CHANNEL_BITS = 4;
+
 	/**
 	 * Encodes a file into an image, using the least significant bit(s) in the channels of each pixel to store the data.
 	 *
@@ -21,59 +25,85 @@ public class nStagImg extends nStag {
 	 *                       in a greater visual deviation from the original. Range is 1-8
 	 */
 	public static void encode(String origPath, String fileToEncode, String outName, int bitsPerChannel) {
-		byte[] bytes;
-		BufferedImage original;
+		byte[] bitsToEncode;
 		try {
-			original = ImageIO.read(new File(origPath));
-			bytes = Files.readAllBytes(Paths.get(fileToEncode));
+			byte[] fileBytes = Files.readAllBytes(Paths.get(fileToEncode));
+
+			/*
+			 * If number of bits to encode is larger than number of bits that can be encoded in image, notify user and return.
+			 * The image can hold: (pixels * 4 * (bits per channel)). Each pixel has 4 channels, alpha, red, green and blue.
+			 */
+//		if (bytes.length * 8 > original.getWidth() * original.getHeight() * bitsPerChannel * 4) {
+//			System.err.println("Not enough space in image, consider allowing more bits");
+//			System.err.println("Required bits: " + (bytes.length * 8));
+//			System.err.println("Available bits: " + (original.getWidth() * original.getHeight() * bitsPerChannel * 4));
+//			return;
+//		}
+
+			System.out.print("Encoding... ");
+			Spinner.spin();
+
+			int fileBitSize = fileBytes.length * 8;
+
+			bitsToEncode = new byte[fileBitSize + KEY_BITS_COUNT + SIZE_BITS_COUNT + BITS_PER_CHANNEL_BITS];
+
+			// Queue of bits to be encoded in the image
+			int[] bitsArr;
+			int pos = 0;
+			for (byte b : fileBytes) {
+				bitsArr = intToBitArray(b, 8, true);
+				for (int aBitsArr : bitsArr)
+					bitsToEncode[KEY_BITS_COUNT + SIZE_BITS_COUNT + BITS_PER_CHANNEL_BITS + pos++] = ((byte) aBitsArr);
+			}
 		} catch (IOException e) {
 			System.err.println("Input files could not be found, please input the correct path, name and extension");
 			return;
 		}
 
-		/*
-		 * If number of bits to encode is larger than number of bits that can be encoded in image, notify user and return.
-		 * The image can hold: (pixels * 4 * (bits per channel)). Each pixel has 4 channels, alpha, red, green and blue.
-		 */
-		if (bytes.length * 8 > original.getWidth() * original.getHeight() * bitsPerChannel * 4) {
-			System.err.println("Not enough space in image, consider allowing more bits");
-			System.err.println("Required bits: " + (bytes.length * 8));
-			System.err.println("Available bits: " + (original.getWidth() * original.getHeight() * bitsPerChannel * 4));
+		Spinner.spin();
+		long start = System.currentTimeMillis();
+		bitsToEncode = offerToEncrypt(bitsToEncode, KEY_BITS_COUNT + SIZE_BITS_COUNT + BITS_PER_CHANNEL_BITS);
+		if (bitsToEncode == null) {
+			System.err.println("Error during encryption... Aborting...");
+			return;
+		}
+		System.out.println("Encrypted in: " + (System.currentTimeMillis() - start) + "ms");
+
+		ArrayDeque<Byte> encodingData = new ArrayDeque<>();
+
+		// Queue of bits defining the size of the encoded file, and the number of bits taken in each channel
+		int[] fileSizeBitsArr = intToBitArray(bitsToEncode.length, 32, false); // File size bits
+		for (int aFileSizeBitsArr : fileSizeBitsArr) encodingData.add((byte) aFileSizeBitsArr);
+		int[] bitsUsedArr = intToBitArray(bitsPerChannel, 4, false); // Bits per channel
+		for (int aBitsUsedArr : bitsUsedArr) encodingData.add((byte) aBitsUsedArr);
+
+		int pos = 0;
+		while (!encodingData.isEmpty())
+			bitsToEncode[KEY_BITS_COUNT + pos++] = encodingData.pop();
+
+		// Write data to fileBits
+		BufferedImage original;
+		try {
+			original = ImageIO.read(new File(origPath));
+		} catch (IOException e) {
+			e.printStackTrace();
 			return;
 		}
 
-		System.out.print("Encoding... ");
-		Spinner.spin();
-
-		// Queue of bits to be encoded in the image
-		ArrayDeque<Integer> bits = new ArrayDeque<>();
-		int[] bitsArr;
-		for (byte aByte : bytes) {
-			bitsArr = intToBitArray(aByte, 8, true);
-			for (int aBitsArr : bitsArr) bits.add(aBitsArr);
-		}
-
 		BufferedImage out = new BufferedImage(original.getWidth(), original.getHeight(), BufferedImage.TYPE_INT_ARGB);
-
-		// Queue of bits defining the size of the encoded file, and the number of bits taken in each channel
-		ArrayDeque<Integer> encodingData = new ArrayDeque<>();
-		int[] fileSizeBitsArr = intToBitArray(bits.size(), 32, false); // File size bits
-		for (int aFileSizeBitsArr : fileSizeBitsArr) encodingData.add(aFileSizeBitsArr);
-		int[] bitsUsedArr = intToBitArray(bitsPerChannel, 4, false); // Bits per channel
-		for (int aBitsUsedArr : bitsUsedArr) encodingData.add(aBitsUsedArr);
-
-		encodingData.addAll(bits);
-
-		offerToEncrypt(bits);
 
 		/*
 		 * Write file bits to least significant bits of original image, until all have been written. Then just copy
 		 * pixels from the original image until done.
 		 */
+
+		int bitPos = KEY_BITS_COUNT + SIZE_BITS_COUNT + BITS_PER_CHANNEL_BITS;
 		for (int j = 0; j < original.getHeight(); j++)
 			for (int i = 0; i < original.getWidth(); i++) {
-				if (bits.size() > 0)
-					out.setRGB(i, j, insertDataToPixel(original.getRGB(i, j), bitsPerChannel, encodingData));
+				if (encodingData.size() > 0) {
+					out.setRGB(i, j, insertDataToPixel(original.getRGB(i, j), bitsPerChannel, bitsToEncode, bitPos));
+					bitPos += 4 * bitsPerChannel;
+				}
 				else
 					out.setRGB(i, j, original.getRGB(i, j));
 			}
@@ -96,18 +126,18 @@ public class nStagImg extends nStag {
 	 * @param bits      ArrayDeque of bits that make up the file that is to be encoded
 	 * @return Modified 32-bit argb int representing the new color of the pixel
 	 */
-	private static int insertDataToPixel(int orig, int bitsToUse, ArrayDeque<Integer> bits) {
+	private static int insertDataToPixel(int orig, int bitsToUse, byte[] bits, int bitPos) {
 		int[] aBits = intToBitArray(((orig >> 24) & 0xff), 8, false); // Get alpha bits
 		int[] rBits = intToBitArray(((orig >> 16) & 0xff), 8, false); // Get red bits
 		int[] gBits = intToBitArray(((orig >> 8) & 0xff), 8, false); // Get green bits
 		int[] bBits = intToBitArray((orig & 0xff), 8, false); // Get blue bits
 
 		// Write file bits to least significant bits of each channel (last array position)
-		for (int bit = 0; bit < bitsToUse && !bits.isEmpty(); bit++) {
-			aBits[7 - bit] = bits.pop();
-			rBits[7 - bit] = bits.pop();
-			gBits[7 - bit] = bits.pop();
-			bBits[7 - bit] = bits.pop();
+		for (int bit = 0; bit < bitsToUse && bitPos + 4 * bitsToUse < bits.length; bit++) {
+			aBits[7 - bit] = bits[bitPos + bit * 4];
+			rBits[7 - bit] = bits[bitPos + 1 + bit * 4];
+			gBits[7 - bit] = bits[bitPos + 2 + bit * 4];
+			bBits[7 - bit] = bits[bitPos + 3 + bit * 4];
 		}
 
 		// Return 32-bit int representing the color of the pixel, with some relevant bits stored in it
@@ -140,7 +170,7 @@ public class nStagImg extends nStag {
 		 * File size is read from the least significant bits (last bit) of each channel value. Since each channel
 		 * has range 0-255, it can be represented as 8 bits, and only the 8th is relevant.
 		 */
-		int[] imgSize = new int[32];
+		int[] imgSize = new int[32]; // TODO: REQUIRES FULL REWRITE
 		for (int i = 0; i < 8; i++) {
 			int p = encoded.getRGB(i, 0);
 			imgSize[i * 4] = intToBitArray(((p >> 24) & 0xff), 8, false)[7];
@@ -180,7 +210,7 @@ public class nStagImg extends nStag {
 		}
 
 		Spinner.spin();
-		decodedBytes = offerToDecrypt(decodedBytes);
+//		decodedBytes = offerToDecrypt(decodedBytes);
 
 		try {
 			FileOutputStream fos = new FileOutputStream(outFileName);

@@ -1,19 +1,26 @@
 package nstag;
 
-import com.google.crypto.tink.*;
+import com.google.crypto.tink.Aead;
+import com.google.crypto.tink.BinaryKeysetWriter;
+import com.google.crypto.tink.CleartextKeysetHandle;
+import com.google.crypto.tink.KeysetHandle;
 import com.google.crypto.tink.aead.AeadFactory;
 import com.google.crypto.tink.aead.AeadKeyTemplates;
 import com.lambdaworks.crypto.SCryptUtil;
 
-import java.io.*;
-import java.math.BigInteger;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.security.GeneralSecurityException;
-import java.util.*;
+import java.util.ArrayDeque;
+import java.util.Scanner;
+import java.util.Stack;
 
 public abstract class nStag {
 	protected static Scanner in = new Scanner(System.in);
 
 	protected static String origPath, fileToHide, outPath;
+
+	final static int ENCRYPT_OVERHEAD_BITS = 33 * 8;
 
 	/**
 	 * Converts a decimal number into an array of bits. Can handle both signed and unsigned binary numbers.
@@ -77,86 +84,88 @@ public abstract class nStag {
 		outPath = in.nextLine();
 	}
 
-	protected static void offerToEncrypt(ArrayDeque<Integer> unencBits) {
+	protected static byte[] offerToEncrypt(byte[] bitsToEncrypt, int dataStartPos) {
 		System.out.print("Do you want to encrypt the data? Y/N: ");
 		String ans = in.nextLine();
 
 		if ("n".equalsIgnoreCase(ans))
-			return ;
+			return bitsToEncrypt;
 
 		KeysetHandle keysetHandle;
-		Aead aead;
-
 		byte[] encryptedData;
-		long seed;
+
 		try {
-			keysetHandle = KeysetHandle.generateNew(AeadKeyTemplates.AES128_GCM);
-			aead = AeadFactory.getPrimitive(keysetHandle);
+			keysetHandle = KeysetHandle.generateNew(AeadKeyTemplates.AES256_GCM);
+			Aead aead = AeadFactory.getPrimitive(keysetHandle);
 
-			if (!writeKeyToBitDeque(unencBits, keysetHandle))
-				return;
-
+			// Generate password hash to be used to encrypt the data
 			System.out.print("Please enter the password to use: ");
 			String pass = SCryptUtil.scrypt(in.nextLine(), (int) Math.pow(2, 18), 16, 2);
 			System.out.println("Scrypt hash: " + pass);
 
-			Integer[] unencBitArray = unencBits.toArray(new Integer[unencBits.size()]);
-			byte[] dataToEnc = new byte[unencBits.size()];
-			for (int i = 0; i < dataToEnc.length; i++)
-				dataToEnc[i] = Byte.valueOf(Integer.toString(unencBitArray[i])); // ew
-
-			encryptedData = aead.encrypt(dataToEnc, pass.getBytes()); // TODO: MAYBE HASH SEED, THEN HASH UNIQUE STR FOR PASS?
-			seed = genSeed(SCryptUtil.scrypt(pass, (int) Math.pow(2, 16), 16, 2));
+			// Encrypt data and generate seed for scrambling the bits later
+			System.out.println("Orig size: " + bitsToEncrypt.length);
+			encryptedData = aead.encrypt(bitsToEncrypt, pass.getBytes());
+			System.out.println("Encrypt size: " + encryptedData.length);
 		} catch (GeneralSecurityException e) {
 			System.err.println("Encryption failed, aborting...");
-			return;
+			return bitsToEncrypt;
 		}
 
-		shuffleBits(unencBits, encryptedData, seed);
+		// Writes key to start of bit array, after encryption, otherwise decrypting the data would not be possible
+		bitsToEncrypt = writeKeyToBitDeque(encryptedData, keysetHandle);
+		if (bitsToEncrypt == null)
+			return null;
+
+//		int encBitPos = 0;
+//		for (byte encByte : encryptedData) {
+//			int[] encBits = intToBitArray(encByte, 8, true);
+//			for (int b : encBits)
+//				bitsToEncrypt[dataStartPos + encBitPos++] = ((byte) b);
+//		}
+
+		return bitsToEncrypt;
 	}
 
-	private static boolean writeKeyToBitDeque(ArrayDeque<Integer> unencBits, KeysetHandle keysetHandle) {
+	private static byte[] writeKeyToBitDeque(byte[] bitsToEncrypt, KeysetHandle keysetHandle) {
 		try {
 			byte[] key;
 			ByteArrayOutputStream baos = new ByteArrayOutputStream();
 			CleartextKeysetHandle.write(keysetHandle, BinaryKeysetWriter.withOutputStream(baos));
 			key = baos.toByteArray();
-			Stack<Integer> keyBits = new Stack<>();
+			System.out.println("KeyLen: " + key.length);
+			Stack<Byte> keyBits = new Stack<>();
 
 			for (int keyByte : key) {
 				int[] kBits = intToBitArray(keyByte, 8, true);
 				for (int b = kBits.length - 1; b >= 0; b--)
-					keyBits.add(kBits[b]);
+					keyBits.add((byte) kBits[b]);
 			}
 
-			while (!keyBits.empty())
-				unencBits.addFirst(keyBits.pop());
-			return true;
+			for (int i = keyBits.size() - 1; i >= 0; i--)
+				bitsToEncrypt[i] = keyBits.pop();
+			return bitsToEncrypt;
 		} catch (IOException e) {
 			System.err.println("Error obtaining key, no encryption will be performed, aborting...");
-			return false;
+			return null;
 		}
 	}
-
-	private static void shuffleBits(ArrayDeque<Integer> unencBits, byte[] encryptedData, long seed) {
-		ArrayList<Integer> newPositions = new ArrayList<>();
-		for (int i = 0; i < unencBits.size(); i++)
-			newPositions.add(i);
-		Collections.shuffle(newPositions, new Random(seed));
-
-		ArrayList<Integer> shuffledBits = new ArrayList<>();
-		for (int i = 0; i < unencBits.size(); i++)
-			shuffledBits.set(newPositions.get(i), (int) encryptedData[i]);
-
-		unencBits.clear();
-		unencBits.addAll(shuffledBits);
-	}
-
+/*
 	private static long genSeed(String pass) {
 		BigInteger num = new BigInteger("0");
-		for (int i = 0; i < pass.length(); i++)
-			num = num.add(new BigInteger("" + ((int) pass.charAt(i) * Math.pow(128, i))));
-		num = num.add(new BigInteger("" + (pass.length() * Math.pow(128, 2 * pass.length()))));
+		for (int i = 0; i < pass.length(); i++) {
+			BigInteger charPosVal = new BigInteger("" + (int) pass.charAt(i));
+			BigInteger charPosPow = new BigInteger("" + 128);
+			charPosPow = charPosPow.pow(i);
+			charPosVal = charPosVal.multiply(charPosPow);
+			num = num.add(charPosVal);
+		}
+
+		BigInteger passLength = new BigInteger("" + pass.length());
+		BigInteger passLengthPow = new BigInteger("" + 128);
+		passLengthPow = passLengthPow.pow(2 * pass.length());
+		passLength = passLength.multiply(passLengthPow);
+		num = num.add(passLength);
 
 		int[] init = new int[63];
 		for (int i = 0; i < 63; i++)
@@ -164,32 +173,22 @@ public abstract class nStag {
 
 		Random rand = new Random(bitArrayToLong(init, false));
 
-		int randBitPos = rand.nextInt() % (num.toString().length() - 64);
+		int randBitPos = rand.nextInt(num.toString().length() - 64);
 
 		int[] seedBits = new int[63];
 		for (int i = 0; i < 63; i++)
-			seedBits[randBitPos + i] = num.toString().charAt(i);
+			seedBits[i] = num.toString().charAt(randBitPos + i);
 		return bitArrayToLong(seedBits, false);
 	}
-
-	public static byte[] offerToDecrypt(byte[] bytes) {
+*/
+	public static void offerToDecrypt(ArrayDeque<Integer> bitsToDecrypt) {
 		System.out.print("Is this file encrypted? Y/N: ");
 		String ans = in.nextLine();
 
-		if ("y".equalsIgnoreCase(ans)) {
-			KeysetHandle keysetHandle;
-			Aead aead;
-			try {
-				keysetHandle = KeysetHandle.generateNew(AeadKeyTemplates.AES128_GCM);
-				aead = AeadFactory.getPrimitive(keysetHandle);
+		if ("n".equalsIgnoreCase(ans))
+			return;
 
-				System.out.print("Please enter the password: ");
-				return aead.decrypt(bytes, "testing".getBytes());
-			} catch (GeneralSecurityException e) {
-				System.err.println("Decryption failed");
-			}
-		}
-
-		return bytes;
+		System.out.print("Please enter the password to use: ");
+		String pass = SCryptUtil.scrypt(in.nextLine(), (int) Math.pow(2, 18), 16, 2);
 	}
 }

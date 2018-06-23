@@ -38,7 +38,6 @@ public class Main {
 
 			in.nextLine();
 
-
 			switch (opt) {
 				case 1:
 					String origImagePath, fileToHide, outImagePath;
