@@ -9,10 +9,11 @@ public class Spinner extends Thread {
 	private static Spinner s;
 
 	private char[] chars = {'|', '/', '-', '\\'};
-	private boolean spinning = true;
+	private static boolean spinning = false;
 
 	@Override
 	public void run() {
+		spinning = true;
 		for (int i = 0; spinning; i++) {
 			System.out.print(chars[i % chars.length]);
 			try {
@@ -34,11 +35,18 @@ public class Spinner extends Thread {
 	}
 
 	public static void spin() {
-		if (t == null || !s.spinning) {
+		if (t == null || !Spinner.spinning) {
 			t = new Thread(s = new Spinner());
 			t.setDaemon(true);
 			t.start();
 		} else
 			s.end();
+	}
+
+	public static void printWithSpinner(String str) {
+		if (spinning)
+			spin();
+		System.out.print(str);
+		spin();
 	}
 }

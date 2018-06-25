@@ -3,7 +3,6 @@ package nstag;
 import com.google.crypto.tink.*;
 import com.google.crypto.tink.aead.AeadFactory;
 import com.google.crypto.tink.aead.AeadKeyTemplates;
-import com.lambdaworks.crypto.SCrypt;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -13,10 +12,23 @@ import java.util.Scanner;
 public abstract class nStag {
 	protected static Scanner in = new Scanner(System.in);
 
-	protected static String origPath, fileToHide, outPath;
-
-	static int KEY_BITS_COUNT = 92 * 8;
+	final static int KEY_BITS_COUNT = 92 * 8;
 	final static int SIZE_BITS_COUNT = 4 * 8;
+
+	protected static byte[] byteToBitArray(byte[] origArr) {
+		byte[] bitArr = new byte[origArr.length * 8];
+
+		int pos = 0;
+		int[] byteBitArr;
+
+		for (int bite : origArr) {
+			byteBitArr = intToBitArray(bite, 8, true);
+			for (int bit : byteBitArr)
+				bitArr[pos++] = (byte) bit;
+		}
+
+		return bitArr;
+	}
 
 	/**
 	 * Converts a decimal number into an array of bits. Can handle both signed and unsigned binary numbers.
@@ -63,35 +75,20 @@ public abstract class nStag {
 		return b;
 	}
 
-	protected void requestInput(String fileType, boolean encode) {
-		if (encode)
-			System.out.print("Path to " + fileType + " to hide data in: ");
-		else
-			System.out.print("Path to " + fileType + " to decode data from: ");
-		origPath = in.nextLine();
-		if (encode) {
-			System.out.print("Path to file to be hidden: ");
-			fileToHide = in.nextLine();
-		}
-		if (encode)
-			System.out.print("Desired path and filename (with extension) for output " + fileType + ": ");
-		else
-			System.out.print("Desired path and filename (with extension) for output decoded file: ");
-		outPath = in.nextLine();
-	}
-
-	protected static byte[][] offerToEncrypt(byte[] bytesToEncrypt) {
+	/**
+	 * Encrypts an array of bytes using the AES-128 bit cipher. The key used as part of the encryption (which is
+	 * required for decryption later) is converted to an array of bits and forms the first element of the two
+	 * dimensional array that is returned. The second element of the array returned is the encrypted byte array
+	 * representing the file that is being encoded in the image.
+	 *
+	 * @param bytesToEncrypt Byte array to encrypt
+	 * @return Two dimensional byte array of size two, containing the key and the encrypted bytes, respectively
+	 */
+	protected static byte[][] encrypt(byte[] bytesToEncrypt) {
 		byte[][] keyAndData = new byte[2][];
 		keyAndData[1] = bytesToEncrypt;
 
-		System.out.print("Do you want to encrypt the data? Y/N: ");
-		String ans = in.nextLine();
-
-		if ("n".equalsIgnoreCase(ans))
-			return keyAndData;
-
 		KeysetHandle keysetHandle;
-
 		try {
 			keysetHandle = KeysetHandle.generateNew(AeadKeyTemplates.AES128_GCM);
 			Aead aead = AeadFactory.getPrimitive(keysetHandle);
@@ -100,10 +97,12 @@ public abstract class nStag {
 			keyAndData[0] = writeKeyToBitDeque(keysetHandle);
 
 			// Generate password hash to be used to encrypt the data
+			Spinner.spin();
 			System.out.print("Please enter the password to use: ");
 
 			// Encrypt data and generate seed for scrambling the bits later
 			keyAndData[1] = aead.encrypt(bytesToEncrypt, in.nextLine().getBytes());
+			Spinner.spin();
 		} catch (GeneralSecurityException e) {
 			System.err.println("Encryption failed, aborting...");
 			return keyAndData;
@@ -112,6 +111,11 @@ public abstract class nStag {
 		return keyAndData;
 	}
 
+	/*
+	 * Writes the AES key from the given KeysetHandle to a byte array and then converts it to a bit array, which is
+	 * returned to later be written. This key is used to encrypt and decrypt the data that has been passed to the caller
+	 * of this method.
+	 */
 	private static byte[] writeKeyToBitDeque(KeysetHandle keysetHandle) {
 		byte[] keyBits = new byte[KEY_BITS_COUNT];
 		try {
@@ -120,13 +124,7 @@ public abstract class nStag {
 			CleartextKeysetHandle.write(keysetHandle, BinaryKeysetWriter.withOutputStream(baos));
 			key = baos.toByteArray();
 
-			int pos = 0;
-			for (int keyByte : key) {
-				int[] kBits = intToBitArray(keyByte, 8, true);
-				for (int b : kBits)
-					keyBits[pos++] = (byte) b;
-			}
-
+			keyBits = byteToBitArray(key);
 		} catch (IOException e) {
 			System.err.println("Error obtaining key, no encryption will be performed, aborting...");
 		}
@@ -134,13 +132,16 @@ public abstract class nStag {
 		return keyBits;
 	}
 
-	protected static byte[] offerToDecrypt(byte[] bytesToDecrypt, byte[] key) {
-		System.out.print("Is this file encrypted? Y/N: ");
-		String ans = in.nextLine();
-
-		if ("n".equalsIgnoreCase(ans))
-			return bytesToDecrypt;
-
+	/**
+	 * Decrypts an array of bytes previously encrypted by this program, obtained from extracting the bits from the least
+	 * significant bit(s) of an image. Decryption is attempted using the key stored alongside the encrypted data,
+	 * and with the password requested from the user. The decrypted byte array is then returned.
+	 *
+	 * @param bytesToDecrypt Array of encrypted bytes to be decrypted
+	 * @param key            Key the array was originally encrypted with
+	 * @return Decrypted array of bytes
+	 */
+	protected static byte[] decrypt(byte[] bytesToDecrypt, byte[] key) {
 		System.out.print("Please enter the password to use: ");
 		KeysetHandle keysetHandle;
 
@@ -149,42 +150,11 @@ public abstract class nStag {
 			Aead aead = AeadFactory.getPrimitive(keysetHandle);
 
 			// Encrypt data and generate seed for scrambling the bits later
+			Spinner.spin();
 			return aead.decrypt(bytesToDecrypt, in.nextLine().getBytes());
 		} catch (GeneralSecurityException | IOException e) {
 			System.err.println("Encryption failed, aborting...");
-			e.printStackTrace();
 			return bytesToDecrypt;
 		}
 	}
-/*
-	private static long genSeed(String pass) {
-		BigInteger num = new BigInteger("0");
-		for (int i = 0; i < pass.length(); i++) {
-			BigInteger charPosVal = new BigInteger("" + (int) pass.charAt(i));
-			BigInteger charPosPow = new BigInteger("" + 128);
-			charPosPow = charPosPow.pow(i);
-			charPosVal = charPosVal.multiply(charPosPow);
-			num = num.add(charPosVal);
-		}
-
-		BigInteger passLength = new BigInteger("" + pass.length());
-		BigInteger passLengthPow = new BigInteger("" + 128);
-		passLengthPow = passLengthPow.pow(2 * pass.length());
-		passLength = passLength.multiply(passLengthPow);
-		num = num.add(passLength);
-
-		int[] init = new int[63];
-		for (int i = 0; i < 63; i++)
-			init[i] = num.toString().charAt(i);
-
-		Random rand = new Random(bitArrayToLong(init, false));
-
-		int randBitPos = rand.nextInt(num.toString().length() - 64);
-
-		int[] seedBits = new int[63];
-		for (int i = 0; i < 63; i++)
-			seedBits[i] = num.toString().charAt(randBitPos + i);
-		return bitArrayToLong(seedBits, false);
-	}
-*/
 }
