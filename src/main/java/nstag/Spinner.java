@@ -43,6 +43,11 @@ public class Spinner extends Thread {
 			s.end();
 	}
 
+	/**
+	 * If a spinner is running, stops it. Then prints the passed string, and starts the spinner again.
+	 *
+	 * @param str String to be printed before starting the spinner
+	 */
 	public static void printWithSpinner(String str) {
 		if (spinning)
 			spin();

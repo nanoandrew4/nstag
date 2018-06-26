@@ -49,7 +49,7 @@ public class Main {
 					String encodedImgPath, outFilePath;
 					System.out.print("Path to image to decode data from: ");
 					encodedImgPath = in.nextLine();
-					System.out.print("Path to file in which to save decoded data (with appropriate extension): ");
+					System.out.print("Path and file name under which to save decoded data (with appropriate extension): ");
 					outFilePath = in.nextLine();
 					nStagImg.decode(encodedImgPath, outFilePath);
 					break;

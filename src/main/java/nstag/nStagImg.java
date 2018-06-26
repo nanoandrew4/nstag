@@ -25,7 +25,7 @@ public class nStagImg extends nStag {
 	 */
 	public static void encode(String origPath, String fileToEncode, String outName, int bitsPerChannel) {
 		boolean encrypt = false;
-		System.out.println("Do you wish to encrypt the data? Y/N: ");
+		System.out.print("Do you wish to encrypt the data? Y/N: ");
 		if ("y".equalsIgnoreCase(in.nextLine()))
 			encrypt = true;
 
@@ -34,7 +34,7 @@ public class nStagImg extends nStag {
 			Spinner.printWithSpinner("Loading file to encode... ");
 			fileBytes = Files.readAllBytes(Paths.get(fileToEncode));
 		} catch (IOException e) {
-			System.err.println("Input files could not be found, please input the correct path, name and extension");
+			System.err.println("File to be encoded could not be found, please input the correct path, name and extension");
 			return;
 		}
 
@@ -55,10 +55,12 @@ public class nStagImg extends nStag {
 
 		Spinner.printWithSpinner("Converting metadata values...");
 		byte[] metadataBits = new byte[SIZE_BITS_COUNT + BITS_PER_CHANNEL_BITS + (encrypt ? KEY_BITS_COUNT : 0)];
-		if (encrypt)
+		if (encrypt) {
+			// If encryption was used, copy key bits to the metadataBits array, after the size and bits per channel bits
 			System.arraycopy(
 					keyBits, 0, metadataBits, SIZE_BITS_COUNT + BITS_PER_CHANNEL_BITS, keyBits.length
 			);
+		}
 
 		// Bits representing the file size (encrypted or otherwise, depending on what the user chooses)
 		int[] fileSizeBitsArr = intToBitArray(dataBits.length, SIZE_BITS_COUNT, false); // File size bits
@@ -97,8 +99,8 @@ public class nStagImg extends nStag {
 		Spinner.printWithSpinner("Encoding data to image... ");
 
 		/*
-		 * Write file bits to least significant bits of original image, until all have been written. Then just copy
-		 * pixels from the original image until done. TODO: REWRITE
+		 * Write metadata bits (file size, bits per channel, and key if encryption is used) and data bits to the least
+		 * significant bits of each pixel, until all the data has been written. Then just copy the pixel values.
 		 */
 		int bitPos = 0;
 		for (int j = 0; j < original.getHeight(); j++)
@@ -160,7 +162,7 @@ public class nStagImg extends nStag {
 	 */
 	public static void decode(String encodedPath, String outFileName) {
 		boolean encrypted = false;
-		System.out.println("Is this data encrypted? Y/N: ");
+		System.out.print("Is this data encrypted? Y/N: ");
 		if ("y".equalsIgnoreCase(in.nextLine()))
 			encrypted = true;
 
