@@ -19,12 +19,12 @@ public abstract class nStag {
 		byte[] bitArr = new byte[origArr.length * 8];
 
 		int pos = 0;
-		int[] byteBitArr;
+		byte[] byteBitArr;
 
-		for (int bite : origArr) {
+		for (byte bite : origArr) {
 			byteBitArr = intToBitArray(bite, 8, true);
-			for (int bit : byteBitArr)
-				bitArr[pos++] = (byte) bit;
+			for (byte bit : byteBitArr)
+				bitArr[pos++] = bit;
 		}
 
 		return bitArr;
@@ -38,8 +38,8 @@ public abstract class nStag {
 	 * @param signed    True for interpreting as a signed number, false for interpreting as an unsigned number
 	 * @return Array of bits representing the decimal number passed as an argument, in signed or unsigned form
 	 */
-	protected static int[] intToBitArray(int b, int numOfBits, boolean signed) {
-		int[] bits = new int[numOfBits];
+	public static byte[] intToBitArray(int b, int numOfBits, boolean signed) {
+		byte[] bits = new byte[numOfBits];
 		boolean neg = b < 0;
 		if (signed && neg) {
 			b = ~b; // NOT op, flips all the bits so it can be operated upon normally
@@ -52,7 +52,7 @@ public abstract class nStag {
 		 * which is the desired output when a number is negative.
 		 */
 		for (int i = 0; i < numOfBits; i++) {
-			bits[numOfBits - 1 - i] = (b + (signed && neg ? 1 : 0)) % 2;
+			bits[numOfBits - 1 - i] = (byte) ((b + (signed && neg ? 1 : 0)) % 2);
 			b >>>= 1;
 		}
 		return bits;
@@ -66,7 +66,7 @@ public abstract class nStag {
 	 * @param signed True for interpreting as a signed number, false to interpret as an unsigned number
 	 * @return Integer representation of the array of bits
 	 */
-	protected static long bitArrayToLong(int[] bits, boolean signed) {
+	public static int bitArrayToInt(byte[] bits, boolean signed) {
 		boolean neg = signed && bits[0] == 1;
 		int b = signed && neg ? -128 : 0;
 		for (int i = (signed && neg ? 1 : 0); i < bits.length; i++)
@@ -82,7 +82,7 @@ public abstract class nStag {
 	 * representing the file that is being encoded in the image.
 	 *
 	 * @param bytesToEncrypt Byte array to encrypt
-	 * @return Two dimensional byte array of size two, containing the key and the encrypted bytes, respectively
+	 * @return Two dimensional byte array of size two, containing the key bits and the encrypted bytes, respectively
 	 */
 	protected static byte[][] encrypt(byte[] bytesToEncrypt) {
 		byte[][] keyAndData = new byte[2][];
@@ -117,19 +117,17 @@ public abstract class nStag {
 	 * of this method.
 	 */
 	private static byte[] writeKeyToBitDeque(KeysetHandle keysetHandle) {
-		byte[] keyBits = new byte[KEY_BITS_COUNT];
 		try {
 			byte[] key;
 			ByteArrayOutputStream baos = new ByteArrayOutputStream();
 			CleartextKeysetHandle.write(keysetHandle, BinaryKeysetWriter.withOutputStream(baos));
 			key = baos.toByteArray();
-
-			keyBits = byteToBitArray(key);
+			key = byteToBitArray(key);
+			return key;
 		} catch (IOException e) {
 			System.err.println("Error obtaining key, no encryption will be performed, aborting...");
+			return null;
 		}
-
-		return keyBits;
 	}
 
 	/**

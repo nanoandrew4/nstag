@@ -1,7 +1,13 @@
 import com.google.crypto.tink.Config;
 import com.google.crypto.tink.aead.AeadConfig;
+import nstag.nStag;
 import nstag.nStagImg;
 
+import javax.imageio.ImageIO;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.Scanner;
 
@@ -12,6 +18,21 @@ public class Main {
 		} catch (GeneralSecurityException e) {
 			e.printStackTrace();
 		}
+
+		BufferedImage orig, enc;
+		try {
+			orig = ImageIO.read(new File("test.png"));
+			enc = ImageIO.read(new File("outtest.png"));
+			Color origC = new Color(orig.getRGB(0, 0));
+			Color encC = new Color(enc.getRGB(0, 0));
+			System.out.println(origC.getAlpha() % 2 + " " + origC.getRed() % 2 + " " + origC.getGreen() % 2 + " " + origC.getBlue() % 2);
+			System.out.println(encC.getAlpha() % 2 + " " + encC.getRed() % 2 + " " + encC.getGreen() % 2 + " " + encC.getBlue() % 2);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+
+//		byte[] b = nStag.intToBitArray(255, 8, false);
+//		System.out.println(nStag.bitArrayToInt(b, false));
 
 		int opt;
 		while (true) {
