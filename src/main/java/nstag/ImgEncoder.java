@@ -1,20 +1,26 @@
 package nstag;
 
-import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.util.ArrayDeque;
 
 public class ImgEncoder {
-	private BufferedImage orig, enc;
+	private BufferedImage img;
 	private int x = 0, y = 0;
 	private int width, height;
 
-	private int bitsPerChannel = 1;
-	private final int NUM_OF_CHANNELS = 4;
+	private int bitsPerChannel = 1, nextChanToWrite = 0, numOfChannels;
+	private int currLSB = 0;
+	private boolean hasAlpha;
 
+	private ArrayDeque<Byte> buffer = new ArrayDeque<>();
+
+	// Seq writes
 	ImgEncoder(BufferedImage origImg, int bitsPerChannel) {
-		orig = origImg;
-		width = orig.getWidth();
-		height = orig.getHeight();
+		img = origImg;
+		hasAlpha = img.getColorModel().hasAlpha();
+		numOfChannels = hasAlpha ? 4 : 3;
+		width = img.getWidth();
+		height = img.getHeight();
 
 		encodeBits(nStag.intToBitArray(bitsPerChannel, 4, false));
 
@@ -22,25 +28,27 @@ public class ImgEncoder {
 	}
 
 	public BufferedImage getImg() {
-		return orig;
+		return img;
 	}
 
 	public void encodeBits(byte[] bitsToEncode) {
 		int pos = 0;
 		for (; y < height; y++) {
 			for (; x < width; x++) {
-				if (pos >= bitsToEncode.length)
+				if (pos >= bitsToEncode.length && buffer.isEmpty())
 					return;
 
-				orig.setRGB(x, y, insertDataToPixel(orig.getRGB(x, y), bitsToEncode, pos));
-				pos += 4 * bitsPerChannel;
+				while (buffer.size() < numOfChannels * bitsPerChannel && pos < bitsToEncode.length)
+					buffer.add(bitsToEncode[pos++]);
+
+				img.setRGB(x, y, insertDataToPixel(img.getRGB(x, y)));
 			}
 			x = 0;
 		}
 	}
 
 	public void encodeBytes(byte[] bytesToEncode, int startNibble) {
-		byte[] byteBits = new byte[bitsPerChannel * NUM_OF_CHANNELS];
+		byte[] byteBits = new byte[bitsPerChannel * numOfChannels];
 		int currNibble = startNibble;
 
 		for (; y < height; y++) {
@@ -56,7 +64,7 @@ public class ImgEncoder {
 						System.arraycopy(bits, 4, byteBits, i * 4, 4);
 					currNibble++;
 				}
-				orig.setRGB(x, y, insertDataToPixel(orig.getRGB(x, y), byteBits, 0));
+				img.setRGB(x, y, insertDataToPixel(img.getRGB(x, y)));
 			}
 			x = 0;
 		}
@@ -67,22 +75,38 @@ public class ImgEncoder {
 	 * the 32-bit integer representing the modified color that can be used with the BufferedImage.
 	 *
 	 * @param orig Original 32-bit argb int representing the color of the pixel
-	 * @param bits ArrayDeque of bits that make up the file that is to be encoded
 	 * @return Modified 32-bit argb int representing the new color of the pixel
 	 */
-	private int insertDataToPixel(int orig, byte[] bits, int bitPos) {
+	private int insertDataToPixel(int orig) {
 		byte[] aBits = nStag.intToBitArray(((orig >> 24) & 0xff), 8, false); // Get alpha bits
 		byte[] rBits = nStag.intToBitArray(((orig >> 16) & 0xff), 8, false); // Get red bits
 		byte[] gBits = nStag.intToBitArray(((orig >> 8) & 0xff), 8, false); // Get green bits
 		byte[] bBits = nStag.intToBitArray((orig & 0xff), 8, false); // Get blue bits
 
 		// Write file bits to least significant bits of each channel (last array position)
-		for (int bit = 0; bit < bitsPerChannel && bitPos + 4 * (bit + 1) <= bits.length; bit++) {
-			aBits[7 - bit] = bits[bitPos + (bit * 4)];
-			rBits[7 - bit] = bits[bitPos + 1 + (bit * 4)];
-			gBits[7 - bit] = bits[bitPos + 2 + (bit * 4)];
-			bBits[7 - bit] = bits[bitPos + 3 + (bit * 4)];
+		for (; currLSB < bitsPerChannel && !buffer.isEmpty(); currLSB++) {
+			rBits[7 - currLSB] = buffer.pop();
+
+			if (!buffer.isEmpty()) {
+				gBits[7 - currLSB] = buffer.pop();
+				nextChanToWrite = 2;
+			} else if (buffer.isEmpty())
+				break;
+			
+			if (!buffer.isEmpty() && nextChanToWrite == 2) {
+				bBits[7 - currLSB] = buffer.pop();
+				nextChanToWrite = 3 % numOfChannels;
+			}
+			else if (buffer.isEmpty())
+				break;
+
+			if (nextChanToWrite == 3 && !buffer.isEmpty()) {
+				aBits[7 - currLSB] = buffer.pop();
+				nextChanToWrite = 0;
+			}
 		}
+
+		currLSB %= bitsPerChannel;
 
 		// Return 32-bit int representing the color of the pixel, with some relevant bits stored in it
 		return (nStag.bitArrayToInt(aBits, false) << 24) | (nStag.bitArrayToInt(rBits, false) << 16)

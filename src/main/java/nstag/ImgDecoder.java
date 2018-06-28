@@ -10,6 +10,7 @@ public class ImgDecoder {
 	private int bitsPerChannel = 1;
 	private final int NUM_OF_CHANNELS = 4;
 
+	// Seq reads
 	ImgDecoder(BufferedImage encImg) {
 		img = encImg;
 		width = img.getWidth();
