@@ -28,7 +28,7 @@ public class nStagImg extends nStag {
 		if ("y".equalsIgnoreCase(in.nextLine()))
 			encrypt = true;
 
-		byte[] keyBits = null, dataBytes;
+		byte[] keyBytes = null, dataBytes;
 
 		try {
 			Spinner.printWithSpinner("Loading file to encode... ");
@@ -52,28 +52,26 @@ public class nStagImg extends nStag {
 		if (encrypt) {
 			Spinner.printWithSpinner("Encrypting data... ");
 			byte[][] keyAndDataBits = encrypt(dataBytes); // Contains key bits and encrypted data byte array, respectively
-			keyBits = keyAndDataBits[0]; // Key bits, encoded after file size and bits per channel, for later decryption
+			keyBytes = keyAndDataBits[0]; // Key bits, encoded after file size and bits per channel, for later decryption
 			dataBytes = keyAndDataBits[1];
 		}
 
-		// TODO: BITS PER CHANNEL MUST TAKE FIRST PIXEL ON ITS OWN, OTHERWISE DECODING METADATA AND DATA IS IMPOSSIBLE
-		int numOfMetadataBits = SIZE_BITS_COUNT + (encrypt ? KEY_BITS_COUNT : 0);
-		int dataBitsToPadWith = 0;
-		if (numOfMetadataBits % (bitsPerChannel * 4) != 0)
-			dataBitsToPadWith = (bitsPerChannel * 4) - (numOfMetadataBits % (bitsPerChannel * 4));
-
-		byte[] metadataBits = new byte[numOfMetadataBits + dataBitsToPadWith];
-
 		// Bits representing the file size (encrypted or otherwise, depending on what the user chooses)
 		byte[] fileSizeBitsArr = intToBitArray(dataBytes.length, SIZE_BITS_COUNT, false); // File size in bytes
-		System.arraycopy(fileSizeBitsArr, 0, metadataBits, 0, fileSizeBitsArr.length);
+		System.out.println();
+		for (byte b : fileSizeBitsArr)
+			System.out.print(b);
+		System.out.println();
+		ie.encodeBits(fileSizeBitsArr);
+		System.out.println("Bits: " + dataBytes.length);
 
 		/*
 		 * If number of bits to encode is larger than number of bits that can be encoded in image, notify user and
 		 * return. The image can hold: (pixels * 4 * (bits per channel)). Each pixel has 4 channels, alpha, red, green
 		 * and blue.
+		 * TODO: SHOULD BE FARTHER UP
 		 */
-		long requiredBits = fileSizeBitsArr.length + dataBytes.length * 8 + (encrypt ? keyBits.length * 8 : 0);
+		long requiredBits = fileSizeBitsArr.length + dataBytes.length * 8 + (encrypt ? keyBytes.length * 8 : 0);
 		if (requiredBits > original.getWidth() * original.getHeight() * bitsPerChannel * 4) {
 			System.err.println("Not enough space in image, consider allowing more bits");
 			System.err.println("Required bits: " + requiredBits);
@@ -82,27 +80,10 @@ public class nStagImg extends nStag {
 		}
 
 		Spinner.printWithSpinner("Encoding data to image... ");
-
-		/*
-		 * Write metadata bits (file size, bits per channel, and key if encryption is used) and data bits to the least
-		 * significant bits of each pixel, until all the data has been written. Then just copy the pixel values.
-		 */
-
-		if (encrypt)
-			System.arraycopy(keyBits, 0, metadataBits, SIZE_BITS_COUNT + BITS_PER_CHANNEL_BITS, keyBits.length);
-
-		int currNibble = 0;
-		for (int i = 0; i < dataBitsToPadWith / BITS_PER_CHANNEL_BITS; i++) {
-			byte[] bits = intToBitArray(dataBytes[currNibble / 2], 8, true);
-			if (currNibble % 2 == 0)
-				System.arraycopy(bits, 0, metadataBits, numOfMetadataBits + i * 4, 4);
-			else
-				System.arraycopy(bits, 4, metadataBits, numOfMetadataBits + i * 4, 4);
-			currNibble++;
-		}
-//		ie.encodeBits(metadataBits);
-
-//		ie.encodeBytes(dataBytes, currNibble);
+		ImgEncoder.deb = false;
+//		if (encrypt)
+//			ie.encodeBytes(keyBytes);
+//		ie.encodeBytes(dataBytes);
 
 		try {
 			Spinner.printWithSpinner("Writing encoded image to disk... ");
@@ -141,24 +122,30 @@ public class nStagImg extends nStag {
 		Spinner.printWithSpinner("Extracting data from image... ");
 
 		int bitsInImage = bitArrayToInt(id.readBits(32), false);
+		byte[] by = nStag.intToBitArray(bitsInImage, 32, false);
+		System.out.println();
+		for (byte b : by)
+			System.out.print(b);
+		System.out.println();
 
-		byte[] keyBytes = null;
-		if (encrypted)
-			keyBytes = id.readBytes(KEY_BITS_COUNT / 8);
+//		byte[] keyBytes = null;
+//		if (encrypted)
+//			keyBytes = id.readBytes(KEY_BITS_COUNT / 8);
 
 		System.out.println();
 
-		byte[] dataBytes = id.readBytes(bitsInImage);
+		System.out.println("Reading bits: " + bitsInImage);
+//		byte[] dataBytes = id.readBytes(bitsInImage);
 
-		if (encrypted) {
-			Spinner.printWithSpinner("Decrypting data... ");
-			dataBytes = decrypt(dataBytes, keyBytes);
-		}
+//		if (encrypted) {
+//			Spinner.printWithSpinner("Decrypting data... ");
+//			dataBytes = decrypt(dataBytes, keyBytes);
+//		}
 
 		try {
 			Spinner.printWithSpinner("Writing decoded data to disk... ");
 			FileOutputStream fos = new FileOutputStream(outFileName);
-			fos.write(dataBytes);
+//			fos.write(dataBytes);
 			fos.close();
 			Spinner.spin();
 			System.out.println("Data decoded successfully into file: \"" + outFileName + "\"\n\n");

@@ -8,21 +8,24 @@ public class ImgEncoder {
 	private int x = 0, y = 0;
 	private int width, height;
 
+	public static boolean deb = true;
+
 	private int bitsPerChannel = 1, nextChanToWrite = 0, numOfChannels;
 	private int currLSB = 0;
-	private boolean hasAlpha;
 
 	private ArrayDeque<Byte> buffer = new ArrayDeque<>();
 
 	// Seq writes
 	ImgEncoder(BufferedImage origImg, int bitsPerChannel) {
 		img = origImg;
-		hasAlpha = img.getColorModel().hasAlpha();
-		numOfChannels = hasAlpha ? 4 : 3;
+		numOfChannels = img.getColorModel().hasAlpha() ? 4 : 3;
 		width = img.getWidth();
 		height = img.getHeight();
 
 		encodeBits(nStag.intToBitArray(bitsPerChannel, 4, false));
+		if (numOfChannels == 3)
+			x = 2;
+		currLSB = nextChanToWrite = 0;
 
 		this.bitsPerChannel = bitsPerChannel;
 	}
@@ -34,40 +37,26 @@ public class ImgEncoder {
 	public void encodeBits(byte[] bitsToEncode) {
 		int pos = 0;
 		for (; y < height; y++) {
-			for (; x < width; x++) {
-				if (pos >= bitsToEncode.length && buffer.isEmpty())
+			for (; x < width; ) {
+				if (pos >= bitsToEncode.length && buffer.isEmpty()) {
 					return;
+				}
 
 				while (buffer.size() < numOfChannels * bitsPerChannel && pos < bitsToEncode.length)
 					buffer.add(bitsToEncode[pos++]);
 
 				img.setRGB(x, y, insertDataToPixel(img.getRGB(x, y)));
+
+				if ((currLSB %= bitsPerChannel) == 0)
+					x++;
 			}
 			x = 0;
 		}
 	}
 
-	public void encodeBytes(byte[] bytesToEncode, int startNibble) {
-		byte[] byteBits = new byte[bitsPerChannel * numOfChannels];
-		int currNibble = startNibble;
-
-		for (; y < height; y++) {
-			for (; x < width; x++) {
-				for (int i = 0; i < bitsPerChannel; i++) {
-					if (currNibble / 2 >= bytesToEncode.length)
-						return;
-
-					byte[] bits = nStag.intToBitArray(bytesToEncode[currNibble / 2], 8, true);
-					if (currNibble % 2 == 0)
-						System.arraycopy(bits, 0, byteBits, i * 4, 4);
-					else
-						System.arraycopy(bits, 4, byteBits, i * 4, 4);
-					currNibble++;
-				}
-				img.setRGB(x, y, insertDataToPixel(img.getRGB(x, y)));
-			}
-			x = 0;
-		}
+	public void encodeBytes(byte[] bytesToEncode) {
+		for (byte b : bytesToEncode)
+			encodeBits(nStag.intToBitArray(b, 8, true));
 	}
 
 	/**
@@ -84,7 +73,7 @@ public class ImgEncoder {
 		byte[] bBits = nStag.intToBitArray((orig & 0xff), 8, false); // Get blue bits
 
 		// Write file bits to least significant bits of each channel (last array position)
-		for (; currLSB < bitsPerChannel && !buffer.isEmpty(); currLSB++) {
+		for (; currLSB < bitsPerChannel && !buffer.isEmpty(); ) {
 			rBits[7 - currLSB] = buffer.pop();
 
 			if (!buffer.isEmpty()) {
@@ -92,21 +81,21 @@ public class ImgEncoder {
 				nextChanToWrite = 2;
 			} else if (buffer.isEmpty())
 				break;
-			
+
 			if (!buffer.isEmpty() && nextChanToWrite == 2) {
 				bBits[7 - currLSB] = buffer.pop();
 				nextChanToWrite = 3 % numOfChannels;
-			}
-			else if (buffer.isEmpty())
+				if (numOfChannels == 3)
+					currLSB++;
+			} else if (buffer.isEmpty())
 				break;
 
 			if (nextChanToWrite == 3 && !buffer.isEmpty()) {
 				aBits[7 - currLSB] = buffer.pop();
 				nextChanToWrite = 0;
+				currLSB++;
 			}
 		}
-
-		currLSB %= bitsPerChannel;
 
 		// Return 32-bit int representing the color of the pixel, with some relevant bits stored in it
 		return (nStag.bitArrayToInt(aBits, false) << 24) | (nStag.bitArrayToInt(rBits, false) << 16)

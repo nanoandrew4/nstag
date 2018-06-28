@@ -1,5 +1,6 @@
 import com.google.crypto.tink.Config;
 import com.google.crypto.tink.aead.AeadConfig;
+import nstag.ImgDecoder;
 import nstag.nStag;
 import nstag.nStagImg;
 
@@ -19,14 +20,40 @@ public class Main {
 			e.printStackTrace();
 		}
 
-		BufferedImage orig, enc;
+		BufferedImage orig, encImg;
 		try {
 			orig = ImageIO.read(new File("test.png"));
-			enc = ImageIO.read(new File("outtest.png"));
-			Color origC = new Color(orig.getRGB(0, 0));
-			Color encC = new Color(enc.getRGB(0, 0));
-			System.out.println(origC.getAlpha() % 2 + " " + origC.getRed() % 2 + " " + origC.getGreen() % 2 + " " + origC.getBlue() % 2);
-			System.out.println(encC.getAlpha() % 2 + " " + encC.getRed() % 2 + " " + encC.getGreen() % 2 + " " + encC.getBlue() % 2);
+			encImg = ImageIO.read(new File("outtest.png"));
+			for (int i = 2; i < 5; i++) {
+				Color o = new Color(orig.getRGB(i, 0));
+				Color c = new Color(encImg.getRGB(i, 0));
+				byte[] or = nStag.intToBitArray(o.getRed(), 8, false);
+				byte[] og = nStag.intToBitArray(o.getGreen(), 8, false);
+				byte[] ob = nStag.intToBitArray(o.getBlue(), 8, false);
+				for (byte b : or)
+					System.out.print(b);
+				System.out.print(" ");
+				for (byte b : og)
+					System.out.print(b);
+				System.out.print(" ");
+				for (byte b : ob)
+					System.out.print(b);
+				System.out.println();
+
+				byte[] mr = nStag.intToBitArray(c.getRed(), 8, false);
+				byte[] mg = nStag.intToBitArray(c.getGreen(), 8, false);
+				byte[] mb = nStag.intToBitArray(c.getBlue(), 8, false);
+				for (byte b : mr)
+					System.out.print(b);
+				System.out.print(" ");
+				for (byte b : mg)
+					System.out.print(b);
+				System.out.print(" ");
+				for (byte b : mb)
+					System.out.print(b);
+				System.out.println();
+				System.out.println();
+			}
 		} catch (IOException e) {
 			e.printStackTrace();
 		}

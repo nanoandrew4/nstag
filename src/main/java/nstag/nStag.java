@@ -122,7 +122,6 @@ public abstract class nStag {
 			ByteArrayOutputStream baos = new ByteArrayOutputStream();
 			CleartextKeysetHandle.write(keysetHandle, BinaryKeysetWriter.withOutputStream(baos));
 			key = baos.toByteArray();
-			key = byteToBitArray(key);
 			return key;
 		} catch (IOException e) {
 			System.err.println("Error obtaining key, no encryption will be performed, aborting...");
