@@ -5,7 +5,7 @@ import java.util.ArrayDeque;
 
 public class ImgDecoder {
 	private BufferedImage img;
-	private int x = 0, y = 0, currLSB = 0;
+	private int x = 0, y = 0;
 	private int width, height;
 
 	private int bitsPerChannel = 1;
@@ -22,7 +22,6 @@ public class ImgDecoder {
 
 		bitsPerChannel = nStag.bitArrayToInt(readBits(4), false);
 		buffer.clear();
-		System.out.println("BPC: " + bitsPerChannel);
 	}
 
 	protected byte[] readBits(int bitsToRead) {

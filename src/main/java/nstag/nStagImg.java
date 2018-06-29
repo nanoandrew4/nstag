@@ -10,8 +10,6 @@ import java.nio.file.Paths;
 
 public class nStagImg extends nStag {
 
-	protected final static int BITS_PER_CHANNEL_BITS = 4; // Nibble
-
 	/**
 	 * Encodes a file into an image, using the least significant bit(s) in the ARGB channels of each pixel to store the
 	 * data. Optionally encrypts the data in the file using the AES128 cipher.
@@ -23,29 +21,41 @@ public class nStagImg extends nStag {
 	 *                       in a greater visual deviation from the original. Range is 1-8
 	 */
 	public static void encode(String origPath, String fileToEncode, String outName, int bitsPerChannel) {
+		BufferedImage original = null;
+		byte[] dataBytes;
+		try {
+			Spinner.printWithSpinner("\nLoading image to encode to... ");
+			original = ImageIO.read(new File(origPath));
+			Spinner.printWithSpinner("Loading file to encode... ");
+			dataBytes = Files.readAllBytes(Paths.get(fileToEncode));
+		} catch (IOException e) {
+			if (original == null)
+				System.err.println("Image could not be loaded... Check you entered the right pathname");
+			else
+				System.err.println("File to encode could not be loaded... Check you entered the right pathname");
+			return;
+		}
+
 		boolean encrypt = false;
+		Spinner.spin();
 		System.out.print("Do you wish to encrypt the data? Y/N: ");
 		if ("y".equalsIgnoreCase(in.nextLine()))
 			encrypt = true;
 
-		byte[] keyBytes = null, dataBytes;
-
-		try {
-			Spinner.printWithSpinner("Loading file to encode... ");
-			dataBytes = Files.readAllBytes(Paths.get(fileToEncode));
-		} catch (IOException e) {
-			System.err.println("File to be encoded could not be found, please input the correct path, name and extension");
+		/*
+		 * If number of bits to encode is larger than number of bits that can be encoded in image, notify user and
+		 * return. The image can hold: (pixels * 4 * (bits per channel)). Each pixel has 4 channels, alpha, red, green
+		 * and blue.
+		 */
+		long requiredBits = SIZE_BITS_COUNT + dataBytes.length * 8 + (encrypt ? KEY_BITS_COUNT : 0);
+		if (requiredBits > original.getWidth() * original.getHeight() * bitsPerChannel * 4) {
+			System.err.println("Not enough space in image, consider allowing more bits");
+			System.err.println("Required bits: " + requiredBits);
+			System.err.println("Available bits: " + (original.getWidth() * original.getHeight() * bitsPerChannel * 4));
 			return;
 		}
 
-		BufferedImage original;
-		try {
-			Spinner.printWithSpinner("\nLoading image to encode to... ");
-			original = ImageIO.read(new File(origPath));
-		} catch (IOException e) {
-			e.printStackTrace();
-			return;
-		}
+		byte[] keyBytes = null;
 
 		ImgEncoder ie = new ImgEncoder(original, bitsPerChannel);
 
@@ -58,32 +68,12 @@ public class nStagImg extends nStag {
 
 		// Bits representing the file size (encrypted or otherwise, depending on what the user chooses)
 		byte[] fileSizeBitsArr = intToBitArray(dataBytes.length, SIZE_BITS_COUNT, false); // File size in bytes
-		System.out.println();
-		for (byte b : fileSizeBitsArr)
-			System.out.print(b);
-		System.out.println();
 		ie.encodeBits(fileSizeBitsArr);
-		System.out.println("Bits: " + dataBytes.length);
-
-		/*
-		 * If number of bits to encode is larger than number of bits that can be encoded in image, notify user and
-		 * return. The image can hold: (pixels * 4 * (bits per channel)). Each pixel has 4 channels, alpha, red, green
-		 * and blue.
-		 * TODO: SHOULD BE FARTHER UP
-		 */
-		long requiredBits = fileSizeBitsArr.length + dataBytes.length * 8 + (encrypt ? keyBytes.length * 8 : 0);
-		if (requiredBits > original.getWidth() * original.getHeight() * bitsPerChannel * 4) {
-			System.err.println("Not enough space in image, consider allowing more bits");
-			System.err.println("Required bits: " + requiredBits);
-			System.err.println("Available bits: " + (original.getWidth() * original.getHeight() * bitsPerChannel * 4));
-			return;
-		}
 
 		Spinner.printWithSpinner("Encoding data to image... ");
-		ImgEncoder.deb = false;
-//		if (encrypt)
-//			ie.encodeBytes(keyBytes);
-//		ie.encodeBytes(dataBytes);
+		if (encrypt)
+			ie.encodeBytes(keyBytes);
+		ie.encodeBytes(dataBytes);
 
 		try {
 			Spinner.printWithSpinner("Writing encoded image to disk... ");
@@ -122,30 +112,22 @@ public class nStagImg extends nStag {
 		Spinner.printWithSpinner("Extracting data from image... ");
 
 		int bitsInImage = bitArrayToInt(id.readBits(32), false);
-		byte[] by = nStag.intToBitArray(bitsInImage, 32, false);
-		System.out.println();
-		for (byte b : by)
-			System.out.print(b);
-		System.out.println();
 
-//		byte[] keyBytes = null;
-//		if (encrypted)
-//			keyBytes = id.readBytes(KEY_BITS_COUNT / 8);
+		byte[] keyBytes = null;
+		if (encrypted)
+			keyBytes = id.readBytes(KEY_BITS_COUNT / 8);
 
-		System.out.println();
+		byte[] dataBytes = id.readBytes(bitsInImage);
 
-		System.out.println("Reading bits: " + bitsInImage);
-//		byte[] dataBytes = id.readBytes(bitsInImage);
-
-//		if (encrypted) {
-//			Spinner.printWithSpinner("Decrypting data... ");
-//			dataBytes = decrypt(dataBytes, keyBytes);
-//		}
+		if (encrypted) {
+			Spinner.printWithSpinner("Decrypting data... ");
+			dataBytes = decrypt(dataBytes, keyBytes);
+		}
 
 		try {
 			Spinner.printWithSpinner("Writing decoded data to disk... ");
 			FileOutputStream fos = new FileOutputStream(outFileName);
-//			fos.write(dataBytes);
+			fos.write(dataBytes);
 			fos.close();
 			Spinner.spin();
 			System.out.println("Data decoded successfully into file: \"" + outFileName + "\"\n\n");
