@@ -12,8 +12,8 @@ import java.util.Scanner;
 public abstract class nStag {
 	protected static Scanner in = new Scanner(System.in);
 
-	final static int KEY_BITS_COUNT = 92 * 8;
-	final static int SIZE_BITS_COUNT = 4 * 8;
+	final protected static int KEY_BITS_COUNT = 92 * 8;
+	final protected static int SIZE_BITS_COUNT = 4 * 8;
 
 	protected static byte[] byteToBitArray(byte[] origArr) {
 		byte[] bitArr = new byte[origArr.length * 8];

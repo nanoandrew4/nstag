@@ -1,6 +1,6 @@
 import com.google.crypto.tink.Config;
 import com.google.crypto.tink.aead.AeadConfig;
-import nstag.nStagImg;
+import nstag.img.nStagImg;
 
 import java.security.GeneralSecurityException;
 import java.util.Scanner;

@@ -1,4 +1,7 @@
-package nstag;
+package nstag.img;
+
+import nstag.Spinner;
+import nstag.nStag;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -66,13 +69,21 @@ public class nStagImg extends nStag {
 			dataBytes = keyAndDataBits[1];
 		}
 
+//		Spinner.printWithSpinner("Compressing data... ");
+//		double origByteSize = dataBytes.length;
+//		dataBytes = Compressor.compress(dataBytes);
+//		Spinner.spin();
+//		System.out.println("Compressed data by " + String.format("%.2f", ((origByteSize - dataBytes.length) / origByteSize) * 100.0) + "%");
+
+		Spinner.printWithSpinner("Encoding metadata... ");
 		// Bits representing the file size (encrypted or otherwise, depending on what the user chooses)
 		byte[] fileSizeBitsArr = intToBitArray(dataBytes.length, SIZE_BITS_COUNT, false); // File size in bytes
 		ie.encodeBits(fileSizeBitsArr);
 
-		Spinner.printWithSpinner("Encoding data to image... ");
 		if (encrypt)
 			ie.encodeBytes(keyBytes);
+
+		Spinner.printWithSpinner("Encoding data to image... ");
 		ie.encodeBytes(dataBytes);
 
 		try {
@@ -111,13 +122,18 @@ public class nStagImg extends nStag {
 
 		Spinner.printWithSpinner("Extracting data from image... ");
 
-		int bitsInImage = bitArrayToInt(id.readBits(32), false);
+		int fileSize = bitArrayToInt(id.readBits(32), false);
 
 		byte[] keyBytes = null;
 		if (encrypted)
 			keyBytes = id.readBytes(KEY_BITS_COUNT / 8);
 
-		byte[] dataBytes = id.readBytes(bitsInImage);
+		byte[] dataBytes = id.readBytes(fileSize);
+
+//		Spinner.spin();
+//		System.out.println();
+//		Spinner.printWithSpinner("Decompressing data... ");
+//		dataBytes = Compressor.decompress(dataBytes, fileSize);
 
 		if (encrypted) {
 			Spinner.printWithSpinner("Decrypting data... ");

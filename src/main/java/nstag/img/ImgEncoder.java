@@ -1,4 +1,6 @@
-package nstag;
+package nstag.img;
+
+import nstag.nStag;
 
 import java.awt.image.BufferedImage;
 import java.util.ArrayDeque;
@@ -93,7 +95,7 @@ public class ImgEncoder {
 	 * Writes bits from the buffer to the various LSBs in the various channels the current pixel being worked on
 	 * has. Because RGB images have 3 channels, encoding data usually means that you will finish encoding before
 	 * exhausting all the LSBs in all the channels of the last necessary pixel.
-	 *
+	 * <p>
 	 * If one byte (8 bits) were encoded in an RGB image, we would need 3 pixels to hold the 8 bits (assuming we
 	 * used one LSB), but would have one bit left, in which no data would be written, which would be a waste, aside
 	 * from complicating the decoding process. Therefore, this method remembers where it left off, and will continue
