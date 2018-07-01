@@ -1,12 +1,16 @@
 package nstag;
 
-import com.google.crypto.tink.*;
-import com.google.crypto.tink.aead.AeadFactory;
-import com.google.crypto.tink.aead.AeadKeyTemplates;
+import com.lambdaworks.crypto.SCrypt;
 
+import javax.crypto.*;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+import javax.security.auth.DestroyFailedException;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.security.GeneralSecurityException;
+import java.nio.ByteBuffer;
+import java.security.*;
 import java.util.Scanner;
 
 public abstract class nStag {
@@ -15,20 +19,7 @@ public abstract class nStag {
 	final protected static int KEY_BITS_COUNT = 92 * 8;
 	final protected static int SIZE_BITS_COUNT = 4 * 8;
 
-	protected static byte[] byteToBitArray(byte[] origArr) {
-		byte[] bitArr = new byte[origArr.length * 8];
-
-		int pos = 0;
-		byte[] byteBitArr;
-
-		for (byte bite : origArr) {
-			byteBitArr = intToBitArray(bite, 8, true);
-			for (byte bit : byteBitArr)
-				bitArr[pos++] = bit;
-		}
-
-		return bitArr;
-	}
+	final private static int keyLen = 256;
 
 	/**
 	 * Converts a decimal number into an array of bits. Can handle both signed and unsigned binary numbers.
@@ -76,7 +67,7 @@ public abstract class nStag {
 	}
 
 	/**
-	 * Encrypts an array of bytes using the AES-128 bit cipher. The key used as part of the encryption (which is
+	 * Encrypts an array of bytes using the AES-256 bit cipher. The key used as part of the encryption (which is
 	 * required for decryption later) is converted to an array of bits and forms the first element of the two
 	 * dimensional array that is returned. The second element of the array returned is the encrypted byte array
 	 * representing the file that is being encoded in the image.
@@ -84,49 +75,57 @@ public abstract class nStag {
 	 * @param bytesToEncrypt Byte array to encrypt
 	 * @return Two dimensional byte array of size two, containing the key bits and the encrypted bytes, respectively
 	 */
-	protected static byte[][] encrypt(byte[] bytesToEncrypt) {
-		byte[][] keyAndData = new byte[2][];
-		keyAndData[1] = bytesToEncrypt;
+	protected static byte[][] encrypt(byte[] bytesToEncrypt, byte[] header) {
+		byte[][] saltAndCiphertext = new byte[2][];
+		saltAndCiphertext[1] = bytesToEncrypt;
 
-		KeysetHandle keysetHandle;
+		System.out.print("Do you wish to encrypt the data? Y/N: ");
+		if (!"y".equalsIgnoreCase(in.nextLine()))
+			return saltAndCiphertext;
+
+		System.out.print("Enter the password to use: ");
+
+		Cipher cipher;
+		byte[] iv = new byte[12]; // Initialization vector, 12 bytes is GCM default, which is also the most secure
 		try {
-			keysetHandle = KeysetHandle.generateNew(AeadKeyTemplates.AES128_GCM);
-			Aead aead = AeadFactory.getPrimitive(keysetHandle);
+			SecureRandom secureRandom = new SecureRandom();
 
-			// Writes key to start of bit array, after encryption, otherwise decrypting the data would not be possible
-			keyAndData[0] = writeKeyToBitDeque(keysetHandle);
+			secureRandom.nextBytes(iv);
 
-			// Generate password hash to be used to encrypt the data
-			Spinner.spin();
-			System.out.print("Please enter the password to use: ");
+			cipher = Cipher.getInstance("AES/GCM/NoPadding");
+			GCMParameterSpec parameterSpec = new GCMParameterSpec(256, iv);
 
-			// Encrypt data and generate seed for scrambling the bits later
-			keyAndData[1] = aead.encrypt(bytesToEncrypt, in.nextLine().getBytes());
-			Spinner.spin();
-		} catch (GeneralSecurityException e) {
-			System.err.println("Encryption failed, aborting...");
-			return keyAndData;
+			saltAndCiphertext[0] = new byte[8]; // 256 bit salt
+			secureRandom.nextBytes(saltAndCiphertext[0]);
+			SecretKey secretKey = new SecretKeySpec(
+					SCrypt.scrypt(in.nextLine().getBytes(), saltAndCiphertext[0], (int) Math.pow(2, 18), 8, 8, keyLen),
+					"AES"
+			);
+
+			cipher.init(Cipher.ENCRYPT_MODE, secretKey, parameterSpec);
+			secretKey.destroy();
+			cipher.updateAAD(header); // Add header as associated data, to prevent tampering with encrypted data
+		} catch (GeneralSecurityException | DestroyFailedException e) {
+			System.err.println("Cipher creation failed...");
+			return saltAndCiphertext;
 		}
 
-		return keyAndData;
-	}
-
-	/*
-	 * Writes the AES key from the given KeysetHandle to a byte array and then converts it to a bit array, which is
-	 * returned to later be written. This key is used to encrypt and decrypt the data that has been passed to the caller
-	 * of this method.
-	 */
-	private static byte[] writeKeyToBitDeque(KeysetHandle keysetHandle) {
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		CipherOutputStream cos = new CipherOutputStream(baos, cipher);
 		try {
-			byte[] key;
-			ByteArrayOutputStream baos = new ByteArrayOutputStream();
-			CleartextKeysetHandle.write(keysetHandle, BinaryKeysetWriter.withOutputStream(baos));
-			key = baos.toByteArray();
-			return key;
+			cos.write(bytesToEncrypt);
+			cos.close();
 		} catch (IOException e) {
-			System.err.println("Error obtaining key, no encryption will be performed, aborting...");
-			return null;
+			System.err.println("Encrypting data failed...");
 		}
+
+		// Write IV and ciphertext to byte array, and encode that
+		ByteBuffer byteBuffer = ByteBuffer.allocate(iv.length + baos.size());
+		byteBuffer.put(iv);
+		byteBuffer.put(baos.toByteArray());
+		saltAndCiphertext[1] = byteBuffer.array();
+
+		return saltAndCiphertext;
 	}
 
 	/**
@@ -135,23 +134,45 @@ public abstract class nStag {
 	 * and with the password requested from the user. The decrypted byte array is then returned.
 	 *
 	 * @param bytesToDecrypt Array of encrypted bytes to be decrypted
-	 * @param key            Key the array was originally encrypted with
+	 * @param salt           Salt used to hash the password
 	 * @return Decrypted array of bytes
 	 */
-	protected static byte[] decrypt(byte[] bytesToDecrypt, byte[] key) {
-		System.out.print("Please enter the password to use: ");
-		KeysetHandle keysetHandle;
+	protected static byte[] decrypt(byte[] bytesToDecrypt, byte[] header, byte[] salt) {
+		System.out.print("Is the data encrypted? Y/N: ");
+		if (!"y".equalsIgnoreCase(in.nextLine()))
+			return bytesToDecrypt;
 
+		ByteBuffer byteBuffer = ByteBuffer.wrap(bytesToDecrypt);
+		byte[] iv = new byte[12];
+		byteBuffer.get(iv);
+		byte[] cipherText = new byte[byteBuffer.remaining()];
+		byteBuffer.get(cipherText);
+
+		Cipher cipher;
 		try {
-			keysetHandle = CleartextKeysetHandle.read(BinaryKeysetReader.withBytes(key));
-			Aead aead = AeadFactory.getPrimitive(keysetHandle);
-
-			// Encrypt data and generate seed for scrambling the bits later
-			Spinner.spin();
-			return aead.decrypt(bytesToDecrypt, in.nextLine().getBytes());
-		} catch (GeneralSecurityException | IOException e) {
-			System.err.println("Encryption failed, aborting...");
+			cipher = Cipher.getInstance("AES/GCM/NoPadding");
+			cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(
+					SCrypt.scrypt(in.nextLine().getBytes(), salt, (int) Math.pow(2, 18), 8, 8, keyLen), "AES"
+			), new GCMParameterSpec(128, iv));
+			cipher.updateAAD(header);
+		} catch (GeneralSecurityException e) {
+			System.err.println("Cipher creation failed...");
 			return bytesToDecrypt;
 		}
+
+		ByteArrayInputStream bais = new ByteArrayInputStream(cipherText);
+		CipherInputStream cis = new CipherInputStream(bais, cipher);
+
+		byte[] unencData = new byte[cipherText.length];
+		try {
+			byte b;
+			int pos = 0;
+			while ((b = (byte) cis.read()) != -1)
+				unencData[pos++] = b;
+		} catch (IOException e) {
+			System.err.println("Error decrypting data...");
+		}
+
+		return unencData;
 	}
 }

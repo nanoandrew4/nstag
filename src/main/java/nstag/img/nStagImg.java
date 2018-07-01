@@ -1,5 +1,6 @@
 package nstag.img;
 
+import nstag.Compressor;
 import nstag.Spinner;
 import nstag.nStag;
 
@@ -45,6 +46,23 @@ public class nStagImg extends nStag {
 		if ("y".equalsIgnoreCase(in.nextLine()))
 			encrypt = true;
 
+		byte[] keyBytes = null;
+
+		ImgEncoder ie = new ImgEncoder(original, bitsPerChannel);
+
+		if (encrypt) {
+			Spinner.printWithSpinner("Encrypting data... ");
+			byte[][] keyAndDataBits = encrypt(dataBytes, null); // Contains key bits and encrypted data byte array, respectively
+			keyBytes = keyAndDataBits[0]; // Key bits, encoded after file size and bits per channel, for later decryption
+			dataBytes = keyAndDataBits[1];
+		}
+
+		Spinner.printWithSpinner("Compressing data... ");
+		double origByteSize = dataBytes.length;
+		dataBytes = Compressor.compress(dataBytes);
+		Spinner.spin();
+		System.out.println("Compressed data by " + String.format("%.2f", ((origByteSize - dataBytes.length) / origByteSize) * 100.0) + "%");
+
 		/*
 		 * If number of bits to encode is larger than number of bits that can be encoded in image, notify user and
 		 * return. The image can hold: (pixels * 4 * (bits per channel)). Each pixel has 4 channels, alpha, red, green
@@ -58,26 +76,9 @@ public class nStagImg extends nStag {
 			return;
 		}
 
-		byte[] keyBytes = null;
-
-		ImgEncoder ie = new ImgEncoder(original, bitsPerChannel);
-
-		if (encrypt) {
-			Spinner.printWithSpinner("Encrypting data... ");
-			byte[][] keyAndDataBits = encrypt(dataBytes); // Contains key bits and encrypted data byte array, respectively
-			keyBytes = keyAndDataBits[0]; // Key bits, encoded after file size and bits per channel, for later decryption
-			dataBytes = keyAndDataBits[1];
-		}
-
-//		Spinner.printWithSpinner("Compressing data... ");
-//		double origByteSize = dataBytes.length;
-//		dataBytes = Compressor.compress(dataBytes);
-//		Spinner.spin();
-//		System.out.println("Compressed data by " + String.format("%.2f", ((origByteSize - dataBytes.length) / origByteSize) * 100.0) + "%");
-
 		Spinner.printWithSpinner("Encoding metadata... ");
 		// Bits representing the file size (encrypted or otherwise, depending on what the user chooses)
-		byte[] fileSizeBitsArr = intToBitArray(dataBytes.length, SIZE_BITS_COUNT, false); // File size in bytes
+		byte[] fileSizeBitsArr = intToBitArray((int) origByteSize, SIZE_BITS_COUNT, false); // File size in bytes
 		ie.encodeBits(fileSizeBitsArr);
 
 		if (encrypt)
@@ -130,14 +131,14 @@ public class nStagImg extends nStag {
 
 		byte[] dataBytes = id.readBytes(fileSize);
 
-//		Spinner.spin();
-//		System.out.println();
-//		Spinner.printWithSpinner("Decompressing data... ");
-//		dataBytes = Compressor.decompress(dataBytes, fileSize);
+		Spinner.spin();
+		System.out.println();
+		Spinner.printWithSpinner("Decompressing data... ");
+		dataBytes = Compressor.decompress(dataBytes, fileSize);
 
 		if (encrypted) {
 			Spinner.printWithSpinner("Decrypting data... ");
-			dataBytes = decrypt(dataBytes, keyBytes);
+			dataBytes = decrypt(dataBytes, keyBytes, null);
 		}
 
 		try {
