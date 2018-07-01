@@ -2,24 +2,25 @@ package nstag;
 
 import com.lambdaworks.crypto.SCrypt;
 
-import javax.crypto.*;
+import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-import javax.security.auth.DestroyFailedException;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.security.*;
+import java.security.GeneralSecurityException;
+import java.security.SecureRandom;
+import java.util.Arrays;
 import java.util.Scanner;
 
 public abstract class nStag {
 	protected static Scanner in = new Scanner(System.in);
 
-	final protected static int KEY_BITS_COUNT = 92 * 8;
+	final protected static int SALT_SIZE_BITS = 8 * 8;
 	final protected static int SIZE_BITS_COUNT = 4 * 8;
 
-	final private static int keyLen = 256;
+	final protected static int GCM_TAG_SIZE = 128; // 16 bytes
+	final protected static int AES_IV_SIZE = 12; // 12 bytes
+
+	final private static int keyLen = 32; // 256 bit
 
 	/**
 	 * Converts a decimal number into an array of bits. Can handle both signed and unsigned binary numbers.
@@ -79,50 +80,38 @@ public abstract class nStag {
 		byte[][] saltAndCiphertext = new byte[2][];
 		saltAndCiphertext[1] = bytesToEncrypt;
 
-		System.out.print("Do you wish to encrypt the data? Y/N: ");
-		if (!"y".equalsIgnoreCase(in.nextLine()))
-			return saltAndCiphertext;
-
 		System.out.print("Enter the password to use: ");
 
 		Cipher cipher;
-		byte[] iv = new byte[12]; // Initialization vector, 12 bytes is GCM default, which is also the most secure
+		byte[] encData;
+		byte[] iv = new byte[AES_IV_SIZE]; // Initialization vector, 12 bytes is GCM default, which is also the most secure
 		try {
 			SecureRandom secureRandom = new SecureRandom();
-
 			secureRandom.nextBytes(iv);
 
 			cipher = Cipher.getInstance("AES/GCM/NoPadding");
-			GCMParameterSpec parameterSpec = new GCMParameterSpec(256, iv);
 
-			saltAndCiphertext[0] = new byte[8]; // 256 bit salt
+			saltAndCiphertext[0] = new byte[8]; // 64 bit salt
 			secureRandom.nextBytes(saltAndCiphertext[0]);
-			SecretKey secretKey = new SecretKeySpec(
-					SCrypt.scrypt(in.nextLine().getBytes(), saltAndCiphertext[0], (int) Math.pow(2, 18), 8, 8, keyLen),
-					"AES"
-			);
+			byte[] key = SCrypt.scrypt(in.nextLine().getBytes(), saltAndCiphertext[0], (int) Math.pow(2, 18), 8, 8, keyLen);
+			Spinner.printWithSpinner("Encrypting data... ");
 
-			cipher.init(Cipher.ENCRYPT_MODE, secretKey, parameterSpec);
-			secretKey.destroy();
+			cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"), new GCMParameterSpec(GCM_TAG_SIZE, iv));
+			Arrays.fill(key, (byte) 0);
+
 			cipher.updateAAD(header); // Add header as associated data, to prevent tampering with encrypted data
-		} catch (GeneralSecurityException | DestroyFailedException e) {
+			encData = cipher.doFinal(bytesToEncrypt);
+		} catch (GeneralSecurityException e) {
 			System.err.println("Cipher creation failed...");
+			e.printStackTrace();
 			return saltAndCiphertext;
 		}
 
-		ByteArrayOutputStream baos = new ByteArrayOutputStream();
-		CipherOutputStream cos = new CipherOutputStream(baos, cipher);
-		try {
-			cos.write(bytesToEncrypt);
-			cos.close();
-		} catch (IOException e) {
-			System.err.println("Encrypting data failed...");
-		}
-
-		// Write IV and ciphertext to byte array, and encode that
-		ByteBuffer byteBuffer = ByteBuffer.allocate(iv.length + baos.size());
+//		Write IV and ciphertext to byte array, and encode that
+		ByteBuffer byteBuffer = ByteBuffer.allocate(iv.length + encData.length);
 		byteBuffer.put(iv);
-		byteBuffer.put(baos.toByteArray());
+		byteBuffer.put(encData);
+
 		saltAndCiphertext[1] = byteBuffer.array();
 
 		return saltAndCiphertext;
@@ -138,39 +127,29 @@ public abstract class nStag {
 	 * @return Decrypted array of bytes
 	 */
 	protected static byte[] decrypt(byte[] bytesToDecrypt, byte[] header, byte[] salt) {
-		System.out.print("Is the data encrypted? Y/N: ");
-		if (!"y".equalsIgnoreCase(in.nextLine()))
-			return bytesToDecrypt;
-
 		ByteBuffer byteBuffer = ByteBuffer.wrap(bytesToDecrypt);
-		byte[] iv = new byte[12];
+		byte[] iv = new byte[AES_IV_SIZE];
 		byteBuffer.get(iv);
 		byte[] cipherText = new byte[byteBuffer.remaining()];
 		byteBuffer.get(cipherText);
 
+		System.out.print("Enter password: ");
+
 		Cipher cipher;
+		byte[] unencData;
 		try {
 			cipher = Cipher.getInstance("AES/GCM/NoPadding");
-			cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(
-					SCrypt.scrypt(in.nextLine().getBytes(), salt, (int) Math.pow(2, 18), 8, 8, keyLen), "AES"
-			), new GCMParameterSpec(128, iv));
+			byte[] key = SCrypt.scrypt(in.nextLine().getBytes(), salt, (int) Math.pow(2, 18), 8, 8, keyLen);
+			Spinner.printWithSpinner("Decrypting data... ");
+			cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, "AES"), new GCMParameterSpec(GCM_TAG_SIZE, iv));
+
+			Arrays.fill(key, (byte) 0);
 			cipher.updateAAD(header);
+			unencData = cipher.doFinal(cipherText);
 		} catch (GeneralSecurityException e) {
 			System.err.println("Cipher creation failed...");
+			e.printStackTrace();
 			return bytesToDecrypt;
-		}
-
-		ByteArrayInputStream bais = new ByteArrayInputStream(cipherText);
-		CipherInputStream cis = new CipherInputStream(bais, cipher);
-
-		byte[] unencData = new byte[cipherText.length];
-		try {
-			byte b;
-			int pos = 0;
-			while ((b = (byte) cis.read()) != -1)
-				unencData[pos++] = b;
-		} catch (IOException e) {
-			System.err.println("Error decrypting data...");
 		}
 
 		return unencData;

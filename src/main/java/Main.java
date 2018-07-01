@@ -1,18 +1,9 @@
-import com.google.crypto.tink.Config;
-import com.google.crypto.tink.aead.AeadConfig;
 import nstag.img.nStagImg;
 
-import java.security.GeneralSecurityException;
 import java.util.Scanner;
 
 public class Main {
 	public static void main(String... args) {
-		try {
-			Config.register(AeadConfig.TINK_1_1_0);
-		} catch (GeneralSecurityException e) {
-			e.printStackTrace();
-		}
-
 		int opt;
 		while (true) {
 			Scanner in = new Scanner(System.in);

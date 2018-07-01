@@ -42,6 +42,10 @@ public class ImgDecoder {
 		buffer.clear();
 	}
 
+	public int getBitsPerChannel() {
+		return bitsPerChannel;
+	}
+
 	/**
 	 * Decodes bits from the image, until there are enough in the buffer to return the requested number of bits.
 	 *
