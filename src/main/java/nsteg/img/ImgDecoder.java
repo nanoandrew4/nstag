@@ -1,6 +1,6 @@
-package nstag.img;
+package nsteg.img;
 
-import nstag.nStag;
+import nsteg.nSteg;
 
 import java.awt.image.BufferedImage;
 import java.util.ArrayDeque;
@@ -8,13 +8,13 @@ import java.util.ArrayDeque;
 /**
  * This class serves to decode data from an image that was previously encoded using the ImgEncoder class. It reads
  * from the least significant bits from each channel, in each pixel, in the image. The number of LSBs is retrieved from
- * the beginning of the image, where the number is encoded using only 1 LSB. See nStagImg for the specification of how
+ * the beginning of the image, where the number is encoded using only 1 LSB. See nStegImg for the specification of how
  * the data is encoded.
  *
  * The data is decoded sequentially, meaning that it must be decoded in the same order it was encoded, since that is
  * the way it was initially encoded by ImgEncoder.
  *
- * @see nStagImg
+ * @see nStegImg
  */
 public class ImgDecoder {
 	private BufferedImage img; // Image to read (A)RGB data from and to write (A)ARGB modified data to
@@ -38,7 +38,7 @@ public class ImgDecoder {
 		 * if the image is of ARGB type, or the first two pixels, if the image is of type RGB, since this value is
 		 * encoded using only one LSB.
 		 */
-		bitsPerChannel = nStag.bitArrayToInt(readBits(4), false);
+		bitsPerChannel = nSteg.bitArrayToInt(readBits(4), false);
 		buffer.clear();
 	}
 
@@ -82,7 +82,7 @@ public class ImgDecoder {
 		byte[] extractedBytes = new byte[bytesToRead];
 
 		for (int i = 0; i < bytesToRead; i++)
-			extractedBytes[i] = (byte) nStag.bitArrayToInt(readBits(8), true);
+			extractedBytes[i] = (byte) nSteg.bitArrayToInt(readBits(8), true);
 		return extractedBytes;
 	}
 
@@ -108,10 +108,10 @@ public class ImgDecoder {
 	 * @param orig 32-bit argb int representing the colors the values of the 4 color channels
 	 */
 	protected void extractDataFromPixel(int orig) {
-		byte[] aBits = nStag.intToBitArray((orig >> 24) & 0xff, 8, false); // Get alpha channel value
-		byte[] rBits = nStag.intToBitArray((orig >> 16) & 0xff, 8, false); // Get red channel value
-		byte[] gBits = nStag.intToBitArray((orig >> 8) & 0xff, 8, false); // Get green channel value
-		byte[] bBits = nStag.intToBitArray(orig & 0xff, 8, false); // Get blue channel value
+		byte[] aBits = nSteg.intToBitArray((orig >> 24) & 0xff, 8, false); // Get alpha channel value
+		byte[] rBits = nSteg.intToBitArray((orig >> 16) & 0xff, 8, false); // Get red channel value
+		byte[] gBits = nSteg.intToBitArray((orig >> 8) & 0xff, 8, false); // Get green channel value
+		byte[] bBits = nSteg.intToBitArray(orig & 0xff, 8, false); // Get blue channel value
 
 		// Write least significant bit(s) from the color channels to the queue of bits to recover the encoded file
 		for (int lsb = 0; lsb < bitsPerChannel; lsb++) {

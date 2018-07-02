@@ -1,6 +1,6 @@
-# nstag
+# nsteg
 
-nstag is a steganography tool that helps you hide files inside images, by inserting the bits of the file you wish to hide into the least significant bit(s) of the ARGB channels of each pixel in the image. nstag also currently supports AES 128 bit encryption, in order to protect your data in the event someone tried to decode the information held in the image.
+nsteg is a steganography tool that helps you hide files inside images, by inserting the bits of the file you wish to hide into the least significant bit(s) of the ARGB channels of each pixel in the image. nstag also currently supports AES 128 bit encryption, in order to protect your data in the event someone tried to decode the information held in the image.
 
 ### Installation
 

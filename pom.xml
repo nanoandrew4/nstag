@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>nanoandrew4</groupId>
-    <artifactId>nstag</artifactId>
+    <artifactId>nsteg</artifactId>
     <version>v1.2</version>
 
     <build>
@@ -46,11 +46,6 @@
     </build>
 
     <dependencies>
-        <!--<dependency>-->
-            <!--<groupId>com.google.crypto.tink</groupId>-->
-            <!--<artifactId>tink</artifactId>-->
-            <!--<version>1.1.1</version>-->
-        <!--</dependency>-->
         <dependency>
             <groupId>com.lambdaworks</groupId>
             <artifactId>scrypt</artifactId>

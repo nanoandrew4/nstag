@@ -1,4 +1,4 @@
-import nstag.img.nStagImg;
+import nsteg.img.nStegImg;
 
 import java.util.Scanner;
 
@@ -7,11 +7,11 @@ public class Main {
 		int opt;
 		while (true) {
 			Scanner in = new Scanner(System.in);
-			System.out.println("Welcome to nstag - A program that hides files inside images");
+			System.out.println("Welcome to nsteg - A program that hides files inside images");
 			System.out.println("Choose one of the following:");
 			System.out.println("1. Encode a file inside an image");
 			System.out.println("2. Decode a file from an image");
-			System.out.println("0. Exit nstag");
+			System.out.println("0. Exit nsteg");
 			System.out.print("\n>> ");
 
 			do {
@@ -34,7 +34,7 @@ public class Main {
 					do {
 						bitsToUse = in.nextInt();
 					} while (bitsToUse < 1 || bitsToUse > 8);
-					nStagImg.encode(origImagePath, fileToHide, outImagePath, bitsToUse);
+					nStegImg.encode(origImagePath, fileToHide, outImagePath, bitsToUse);
 					break;
 				case 2:
 					String encodedImgPath, outFilePath;
@@ -42,7 +42,7 @@ public class Main {
 					encodedImgPath = in.nextLine();
 					System.out.print("Path and file name under which to save decoded data (with appropriate extension): ");
 					outFilePath = in.nextLine();
-					nStagImg.decode(encodedImgPath, outFilePath);
+					nStegImg.decode(encodedImgPath, outFilePath);
 					break;
 				default:
 					return;

@@ -1,4 +1,4 @@
-package nstag;
+package nsteg;
 
 import com.lambdaworks.crypto.SCrypt;
 
@@ -11,7 +11,7 @@ import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Scanner;
 
-public abstract class nStag {
+public abstract class nSteg {
 	protected static Scanner in = new Scanner(System.in);
 
 	final protected static int SALT_SIZE_BITS = 8 * 8;
@@ -93,8 +93,10 @@ public abstract class nStag {
 
 			saltAndCiphertext[0] = new byte[8]; // 64 bit salt
 			secureRandom.nextBytes(saltAndCiphertext[0]);
-			byte[] key = SCrypt.scrypt(in.nextLine().getBytes(), saltAndCiphertext[0], (int) Math.pow(2, 18), 8, 8, keyLen);
+			byte[] pass = in.nextLine().getBytes();
 			Spinner.printWithSpinner("Encrypting data... ");
+			byte[] key = SCrypt.scrypt(pass, saltAndCiphertext[0], (int) Math.pow(2, 18), 8, 8, keyLen);
+			Arrays.fill(pass, (byte) 0);
 
 			cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"), new GCMParameterSpec(GCM_TAG_SIZE, iv));
 			Arrays.fill(key, (byte) 0);
@@ -134,13 +136,16 @@ public abstract class nStag {
 		byteBuffer.get(cipherText);
 
 		System.out.print("Enter password: ");
+		byte[] pass = in.nextLine().getBytes();
+
+		Spinner.printWithSpinner("Decrypting data... ");
 
 		Cipher cipher;
 		byte[] unencData;
 		try {
 			cipher = Cipher.getInstance("AES/GCM/NoPadding");
-			byte[] key = SCrypt.scrypt(in.nextLine().getBytes(), salt, (int) Math.pow(2, 18), 8, 8, keyLen);
-			Spinner.printWithSpinner("Decrypting data... ");
+			byte[] key = SCrypt.scrypt(pass, salt, (int) Math.pow(2, 18), 8, 8, keyLen);
+			Arrays.fill(pass, (byte) 0);
 			cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, "AES"), new GCMParameterSpec(GCM_TAG_SIZE, iv));
 
 			Arrays.fill(key, (byte) 0);

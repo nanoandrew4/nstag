@@ -1,8 +1,8 @@
-package nstag.img;
+package nsteg.img;
 
-import nstag.Compressor;
-import nstag.Spinner;
-import nstag.nStag;
+import nsteg.Compressor;
+import nsteg.Spinner;
+import nsteg.nSteg;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -12,9 +12,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
-public class nStagImg extends nStag {
+public class nStegImg extends nSteg {
 
 	private final static int BITS_PER_CHANNEL_BITS = 4;
+
+	private static byte[] origBytes;
 
 	/**
 	 * Encodes a file into an image, using the least significant bit(s) in the ARGB channels of each pixel to store the
@@ -33,7 +35,7 @@ public class nStagImg extends nStag {
 			Spinner.printWithSpinner("\nLoading image to encode to... ");
 			original = ImageIO.read(new File(origPath));
 			Spinner.printWithSpinner("Loading file to encode... ");
-			dataBytes = Files.readAllBytes(Paths.get(fileToEncode));
+			origBytes = dataBytes = Files.readAllBytes(Paths.get(fileToEncode));
 		} catch (IOException e) {
 			if (original == null)
 				System.err.println("Image could not be loaded... Check you entered the right pathname");
@@ -151,6 +153,13 @@ public class nStagImg extends nStag {
 		System.out.println();
 		Spinner.printWithSpinner("Decompressing data... ");
 		dataBytes = Compressor.decompress(dataBytes, uncompFileSize);
+
+		if (origBytes != null)
+			for (int i = 0; i < origBytes.length; i++)
+				if (origBytes[i] != dataBytes[i]) {
+					System.out.println(i + ": " + origBytes[i] + " " + dataBytes[i]);
+					break;
+				}
 
 		try {
 			Spinner.printWithSpinner("Writing decoded data to disk... ");

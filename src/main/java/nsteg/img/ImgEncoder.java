@@ -1,6 +1,6 @@
-package nstag.img;
+package nsteg.img;
 
-import nstag.nStag;
+import nsteg.nSteg;
 
 import java.awt.image.BufferedImage;
 import java.util.ArrayDeque;
@@ -34,7 +34,7 @@ public class ImgEncoder {
 		height = img.getHeight();
 
 		// Encode desired LSBs per channel using only LSB of first (or first and second, depending on number of channels) pixel(s)
-		encodeBits(nStag.intToBitArray(bitsPerChannel, 4, false));
+		encodeBits(nSteg.intToBitArray(bitsPerChannel, 4, false));
 
 		// Use two pixels for bitsPerChannel encoding, so restart encoding at 3rd pixel, if image only has three channels
 		if (numOfChannels == 3) {
@@ -88,7 +88,7 @@ public class ImgEncoder {
 	 */
 	public void encodeBytes(byte[] bytesToEncode) {
 		for (byte b : bytesToEncode)
-			encodeBits(nStag.intToBitArray(b, 8, true));
+			encodeBits(nSteg.intToBitArray(b, 8, true));
 	}
 
 	/**
@@ -107,10 +107,10 @@ public class ImgEncoder {
 	 * @return Modified 32-bit argb int representing the new color of the pixel
 	 */
 	private int insertDataToPixel(int orig) {
-		byte[] aBits = nStag.intToBitArray(((orig >> 24) & 0xff), 8, false); // Get original alpha bits
-		byte[] rBits = nStag.intToBitArray(((orig >> 16) & 0xff), 8, false); // Get original red bits
-		byte[] gBits = nStag.intToBitArray(((orig >> 8) & 0xff), 8, false); // Get original green bits
-		byte[] bBits = nStag.intToBitArray((orig & 0xff), 8, false); // Get original blue bits
+		byte[] aBits = nSteg.intToBitArray(((orig >> 24) & 0xff), 8, false); // Get original alpha bits
+		byte[] rBits = nSteg.intToBitArray(((orig >> 16) & 0xff), 8, false); // Get original red bits
+		byte[] gBits = nSteg.intToBitArray(((orig >> 8) & 0xff), 8, false); // Get original green bits
+		byte[] bBits = nSteg.intToBitArray((orig & 0xff), 8, false); // Get original blue bits
 
 		// Mod bit values, in order to encode bits from the buffer. Read method doc for more info
 		for (; currLSB < bitsPerChannel && !buffer.isEmpty(); ) {
@@ -142,7 +142,7 @@ public class ImgEncoder {
 		}
 
 		// Return 32-bit int representing the color of the pixel, with the encoded bits from the buffer
-		return (nStag.bitArrayToInt(aBits, false) << 24) | (nStag.bitArrayToInt(rBits, false) << 16)
-				| (nStag.bitArrayToInt(gBits, false)) << 8 | nStag.bitArrayToInt(bBits, false);
+		return (nSteg.bitArrayToInt(aBits, false) << 24) | (nSteg.bitArrayToInt(rBits, false) << 16)
+				| (nSteg.bitArrayToInt(gBits, false)) << 8 | nSteg.bitArrayToInt(bBits, false);
 	}
 }

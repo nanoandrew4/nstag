@@ -1,4 +1,4 @@
-package nstag;
+package nsteg;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -31,10 +31,10 @@ public class Compressor {
 
 		byte[] uncompBytes = new byte[uncompSize];
 		int pos = 0;
-		byte b;
 		try {
-			while ((b = (byte) iis.read()) != -1)
-				uncompBytes[pos++] = b;
+			while (pos < uncompSize)
+				uncompBytes[pos++] = (byte) iis.read();
+			System.out.println(pos + " " + uncompSize);
 			iis.close();
 		} catch (IOException e) {
 			System.err.println("Decompression failed");
