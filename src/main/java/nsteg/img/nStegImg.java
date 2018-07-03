@@ -1,8 +1,9 @@
 package nsteg.img;
 
 import nsteg.Compressor;
+import nsteg.Crypto;
 import nsteg.Spinner;
-import nsteg.nSteg;
+import nsteg.BitByteConv;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -12,82 +13,98 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
-public class nStegImg extends nSteg {
+/**
+ * Controls the encoding and decoding of data to and from images.
+ * <p><br>
+ * Currently, this is how data is written to the images:
+ * [# of bits per channel used] - [Compressed file size] - [Uncompressed file size] -
+ * [Salt password was hashed with, if encryption was used] - [File data (encrypted or unencrypted)]
+ * <p><br>
+ * The header comprises everything that is not the data bits.
+ * <p><br>
+ * The number of bits per channel used is encoded and decoded using only the least significant bit, and is handled
+ * by the ImgEncoder and ImgDecoder internally. All other blocks of data must be read or written in this class,
+ * in order to properly encode/decode the data.
+ */
+public class nStegImg extends BitByteConv {
 
-	private final static int BITS_PER_CHANNEL_BITS = 4;
+	// Number of bits used to encode/decode how many LSBs will go in each channel
+	private final static int BITS_PER_CHANNEL_BIT_SIZE = 4;
 
-	private static byte[] origBytes;
+	private static boolean dataFitsInImage(int fileSizeInBits, int maxBitsInImage, boolean encrypted) {
+		long requiredBits = BITS_PER_CHANNEL_BIT_SIZE + (2 * SIZE_BITS_COUNT) + fileSizeInBits;
+		if (encrypted)
+			requiredBits += Crypto.GCM_AAD_SIZE + Crypto.AES_IV_SIZE + Crypto.SALT_SIZE_BITS;
+
+		if (requiredBits > maxBitsInImage) {
+			System.err.println("Not enough space in image, consider allowing more bits");
+			System.err.println("Required bits: " + requiredBits);
+			System.err.println("Available bits: " + maxBitsInImage);
+			System.out.println();
+			return false;
+		}
+
+		return true;
+	}
 
 	/**
-	 * Encodes a file into an image, using the least significant bit(s) in the ARGB channels of each pixel to store the
-	 * data. Optionally encrypts the data in the file using the AES128 cipher.
+	 * Encodes a file into an image, using the least significant bit(s) in the (A)RGB channels of each pixel to store
+	 * the data. Optionally encrypts the data in the file using the AES-128 cipher and a hashed version of the key
+	 * provided, which is hashed with Scrypt, in order to stave off brute-force attacks against the key.
 	 *
-	 * @param origPath       Path and name to image into which to encode the data
+	 * @param origImgPath    Path and name to image into which to encode the data
 	 * @param fileToEncode   File to be encoded into the image
-	 * @param outName        Path and name of the desired output image (copy of the original + file data)
+	 * @param outImgName     Path and name of the desired output image (copy of the original + file data)
 	 * @param bitsPerChannel Number of least significant bits to use in each color channel. Using more bits will result
 	 *                       in a greater visual deviation from the original. Range is 1-8
 	 */
-	public static void encode(String origPath, String fileToEncode, String outName, int bitsPerChannel) {
-		BufferedImage original = null;
+	public static void encode(String origImgPath, String fileToEncode, String outImgName, int bitsPerChannel) {
+		BufferedImage origImg = null;
 		byte[] dataBytes;
 		try {
 			Spinner.printWithSpinner("\nLoading image to encode to... ");
-			original = ImageIO.read(new File(origPath));
+			origImg = ImageIO.read(new File(origImgPath));
 			Spinner.printWithSpinner("Loading file to encode... ");
-			origBytes = dataBytes = Files.readAllBytes(Paths.get(fileToEncode));
+			dataBytes = Files.readAllBytes(Paths.get(fileToEncode));
 		} catch (IOException e) {
-			if (original == null)
+			if (origImg == null)
 				System.err.println("Image could not be loaded... Check you entered the right pathname");
 			else
 				System.err.println("File to encode could not be loaded... Check you entered the right pathname");
 			return;
 		}
 
-		ImgEncoder ie = new ImgEncoder(original, bitsPerChannel);
+		ImgEncoder ie = new ImgEncoder(origImg, bitsPerChannel);
 
-		Spinner.printWithSpinner("Compressing data... ");
 		double origByteSize = dataBytes.length;
 		dataBytes = Compressor.compress(dataBytes);
+
 		Spinner.spin();
-		System.out.println("Compressed data by " + String.format("%.2f", ((origByteSize - dataBytes.length) / origByteSize) * 100.0) + "%");
+		boolean encrypted = Crypto.offerToCrypt(true);
 
-		boolean encrypted = false;
-		System.out.print("Do you wish to encrypt the data? Y/N: ");
-		if ("y".equalsIgnoreCase(in.nextLine()))
-			encrypted = true;
+		// Prepare data for use as part of AAD if encryption was used, and to be encoded into the image
+		byte[] uncompFileSizeBits = intToBitArray((int) origByteSize, SIZE_BITS_COUNT, false);
 
-		byte[] header = new byte[GCM_TAG_SIZE];
-		byte[] fileSizeBitsArr = intToBitArray((int) origByteSize, SIZE_BITS_COUNT, false); // File size in bytes
-		int compSize = dataBytes.length + (encrypted ? AES_IV_SIZE + GCM_TAG_SIZE / 8: 0);
+		// Compressed size of the data, accounting for the InitVector and AAD data bits, if encryption is to be used
+		int compSize = dataBytes.length + (encrypted ? Crypto.AES_IV_SIZE + Crypto.GCM_AAD_SIZE / Byte.SIZE : 0);
 		byte[] compFileSizeBits = intToBitArray(compSize, SIZE_BITS_COUNT, false);
-		System.arraycopy(compFileSizeBits, compFileSizeBits.length - 8, header, 0, 8);
-		System.arraycopy(fileSizeBitsArr, fileSizeBitsArr.length - 8, header, 8, 8);
+
+		if (!dataFitsInImage(dataBytes.length * Byte.SIZE,
+				origImg.getWidth() * origImg.getHeight() * bitsPerChannel * BITS_PER_CHANNEL_BIT_SIZE,
+				encrypted))
+			return;
 
 		byte[] saltBytes = null;
 		if (encrypted) {
-			byte[][] keyAndDataBits = encrypt(dataBytes, header); // Contains key bits and encrypted data byte array, respectively
-			saltBytes = keyAndDataBits[0]; // Key bits, encoded after file size and bits per channel, for later decryption
-			dataBytes = keyAndDataBits[1];
-		}
-
-		/*
-		 * If number of bits to encode is larger than number of bits that can be encoded in image, notify user and
-		 * return. The image can hold: (pixels * 4 * (bits per channel)). Each pixel has 4 channels, alpha, red, green
-		 * and blue.
-		 */
-		long requiredBits = BITS_PER_CHANNEL_BITS + SIZE_BITS_COUNT * 2 + dataBytes.length * 8 + (encrypted ? SALT_SIZE_BITS : 0);
-		if (requiredBits > original.getWidth() * original.getHeight() * bitsPerChannel * 4) {
-			System.err.println("Not enough space in image, consider allowing more bits");
-			System.err.println("Required bits: " + requiredBits);
-			System.err.println("Available bits: " + (original.getWidth() * original.getHeight() * bitsPerChannel * 4));
-			return;
+			// Encrypt the data, and use the uncompressed and compressed data bits as AAD
+			byte[][] saltAndDataBits = Crypto.encrypt(dataBytes, Crypto.genAAD(uncompFileSizeBits, compFileSizeBits));
+			saltBytes = saltAndDataBits[0]; // Salt bytes, which are the last part of the header to be encoded
+			dataBytes = saltAndDataBits[1]; // Encrypted data, with IV and AAD
 		}
 
 		Spinner.printWithSpinner("Encoding metadata... ");
-		// Bits representing the file size (encrypted or otherwise, depending on what the user chooses)
 		ie.encodeBits(compFileSizeBits);
-		ie.encodeBits(fileSizeBitsArr);
+		ie.encodeBits(uncompFileSizeBits);
 
 		if (encrypted)
 			ie.encodeBytes(saltBytes);
@@ -96,12 +113,14 @@ public class nStegImg extends nSteg {
 		ie.encodeBytes(dataBytes);
 
 		try {
-			Spinner.printWithSpinner("Writing encoded image to disk... ");
-			ImageIO.write(ie.getImg(), "png", new File(outName));
+			Spinner.printWithSpinner("Writing encoded data to disk... ");
+			ImageIO.write(ie.getImg(), "png", new File(outImgName));
 			Spinner.spin();
-			System.out.println("\nData encoded successfully into image: \"" + outName + "\"\n");
+
+			System.out.println("\nData encoded successfully into image: \"" + outImgName + "\"");
+			System.out.println("Done!\n");
 		} catch (IOException e) {
-			e.printStackTrace();
+			System.err.println("Writing image to disk failed");
 		}
 	}
 
@@ -113,10 +132,7 @@ public class nStegImg extends nSteg {
 	 * @param outFileName Path and name under which to save the encoded file (include file name extension)
 	 */
 	public static void decode(String encodedPath, String outFileName) {
-		boolean encrypted = false;
-		System.out.print("Is this data encrypted? Y/N: ");
-		if ("y".equalsIgnoreCase(in.nextLine()))
-			encrypted = true;
+		boolean encrypted = Crypto.offerToCrypt(false);
 
 		BufferedImage encoded;
 		try {
@@ -129,47 +145,37 @@ public class nStegImg extends nSteg {
 
 		ImgDecoder id = new ImgDecoder(encoded);
 
-		Spinner.printWithSpinner("Extracting data from image... ");
-
-		byte[] header = new byte[GCM_TAG_SIZE];
+		Spinner.printWithSpinner("Extracting metadata from image... ");
 		byte[] compFileSizeBits = id.readBits(SIZE_BITS_COUNT);
 		byte[] uncompFileSizeBits = id.readBits(SIZE_BITS_COUNT);
+
 		int compFileSize = bitArrayToInt(compFileSizeBits, false);
 		int uncompFileSize = bitArrayToInt(uncompFileSizeBits, false);
-		System.arraycopy(compFileSizeBits, compFileSizeBits.length - 8, header, 0, 8);
-		System.arraycopy(uncompFileSizeBits, uncompFileSizeBits.length - 8, header, 8, 8);
 
 		byte[] saltBytes = null;
 		if (encrypted)
-			saltBytes = id.readBytes(SALT_SIZE_BITS / 8);
+			saltBytes = id.readBytes(Crypto.SALT_SIZE_BITS / Byte.SIZE);
 
+		Spinner.printWithSpinner("Extracting file data from image... ");
 		byte[] dataBytes = id.readBytes(compFileSize);
 
 		Spinner.spin();
 		if (encrypted)
-			dataBytes = decrypt(dataBytes, header, saltBytes);
+			dataBytes = Crypto.decrypt(dataBytes, saltBytes, Crypto.genAAD(uncompFileSizeBits, compFileSizeBits));
 
-		Spinner.spin();
-		System.out.println();
-		Spinner.printWithSpinner("Decompressing data... ");
 		dataBytes = Compressor.decompress(dataBytes, uncompFileSize);
-
-		if (origBytes != null)
-			for (int i = 0; i < origBytes.length; i++)
-				if (origBytes[i] != dataBytes[i]) {
-					System.out.println(i + ": " + origBytes[i] + " " + dataBytes[i]);
-					break;
-				}
 
 		try {
 			Spinner.printWithSpinner("Writing decoded data to disk... ");
 			FileOutputStream fos = new FileOutputStream(outFileName);
 			fos.write(dataBytes);
 			fos.close();
+
 			Spinner.spin();
-			System.out.println("Data decoded successfully into file: \"" + outFileName + "\"\n\n");
+			System.out.println("Data written successfully into file: \"" + outFileName + "\"");
+			System.out.println("Done!\n");
 		} catch (IOException e) {
-			e.printStackTrace();
+			System.err.println("Could not write data to disk");
 		}
 	}
 }
