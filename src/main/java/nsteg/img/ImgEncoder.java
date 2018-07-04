@@ -16,7 +16,7 @@ import java.util.ArrayDeque;
  * four channels (ARGB), only the first pixel is used for encoding, and data encoding starts at the second pixel, which
  * means no space is wasted.
  */
-class ImgEncoder {
+public class ImgEncoder {
 	private BufferedImage img; // Image to read (A)RGB data from and to write (A)ARGB modified data to
 	private int x = 0, y = 0; // Pixel coords
 	private int width, height; // Dims of img
@@ -32,10 +32,10 @@ class ImgEncoder {
 	 * Initializes an ImgEncoder instance with the given image, determines the number of channels in the image,
 	 * and encodes the number of LSBs that will be used in each channel into the image.
 	 *
-	 * @param origImg Image to encode data into
+	 * @param origImg        Image to encode data into
 	 * @param bitsPerChannel Number of least significant bits to use in each channel
 	 */
-	ImgEncoder(BufferedImage origImg, int bitsPerChannel) {
+	public ImgEncoder(BufferedImage origImg, int bitsPerChannel) {
 		img = origImg;
 		numOfChannels = img.getColorModel().hasAlpha() ? 4 : 3;
 		width = img.getWidth();
@@ -70,7 +70,7 @@ class ImgEncoder {
 	 *
 	 * @param bitsToEncode Array containing only bits, that are to be encoded in the image
 	 */
-	void encodeBits(byte[] bitsToEncode) {
+	public void encodeBits(byte[] bitsToEncode) {
 		int pos = 0;
 		for (; y < height; y++) {
 			for (; x < width; ) {
@@ -81,7 +81,7 @@ class ImgEncoder {
 					buffer.add(bitsToEncode[pos++]);
 				img.setRGB(x, y, insertDataToPixel(img.getRGB(x, y)));
 
-				if ((currLSB %= bitsPerChannel) == 0)
+				if ((currLSB %= bitsPerChannel) == 0 && nextChanToWrite == 0)
 					x++;
 			}
 			x = 0;
@@ -96,7 +96,7 @@ class ImgEncoder {
 	 *
 	 * @param bytesToEncode Array of bytes to be encoded in the image
 	 */
-	void encodeBytes(byte[] bytesToEncode) {
+	public void encodeBytes(byte[] bytesToEncode) {
 		for (byte b : bytesToEncode)
 			encodeBits(BitByteConv.intToBitArray(b, 8, true));
 	}
@@ -120,7 +120,7 @@ class ImgEncoder {
 		byte[] aBits = BitByteConv.intToBitArray(((orig >> 24) & 0xff), Byte.SIZE, false); // Get original alpha bits
 		byte[] rBits = BitByteConv.intToBitArray(((orig >> 16) & 0xff), Byte.SIZE, false); // Get original red bits
 		byte[] gBits = BitByteConv.intToBitArray(((orig >> 8) & 0xff), Byte.SIZE, false); // Get original green bits
-		byte[] bBits = BitByteConv.intToBitArray((orig & 0xff), Byte.SIZE, false); // Get original blue bits
+		byte[] bBits = BitByteConv.intToBitArray(orig & 0xff, Byte.SIZE, false); // Get original blue bits
 
 		// Mod bit values, in order to encode bits from the buffer. Read method doc for more info
 		for (; currLSB < bitsPerChannel && !buffer.isEmpty(); ) {
@@ -153,6 +153,6 @@ class ImgEncoder {
 
 		// Return 32-bit int representing the color of the pixel, with the encoded bits from the buffer
 		return (BitByteConv.bitArrayToInt(aBits, false) << 24) | (BitByteConv.bitArrayToInt(rBits, false) << 16)
-				| (BitByteConv.bitArrayToInt(gBits, false)) << 8 | BitByteConv.bitArrayToInt(bBits, false);
+				| (BitByteConv.bitArrayToInt(gBits, false) << 8) | BitByteConv.bitArrayToInt(bBits, false);
 	}
 }

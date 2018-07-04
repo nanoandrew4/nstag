@@ -14,11 +14,11 @@ import java.util.Scanner;
 public class Crypto {
 	private static Scanner in = new Scanner(System.in);
 
-	final public static int AES_IV_SIZE = 12; // 12 bytes
-	final public static int GCM_AAD_SIZE = 16 * Byte.BYTES; // 128 bits
+	final public static int GCM_AAD_SIZE = 16 * Byte.SIZE; // 128 bits
 	final public static int SALT_SIZE_BITS = 8 * Byte.SIZE; // 64 bits
 
 	final private static int keyLen = 32; // 256 bit
+	final public static int AES_IV_SIZE = 12; // 12 bytes, recommended for GCM
 
 	public static boolean offerToCrypt(boolean encrypt) {
 		System.out.print("Do you wish to " + (encrypt ? "encrypt" : "decrypt") + " this data? Y/N: ");
@@ -31,11 +31,11 @@ public class Crypto {
 	 * size arrays are used.
 	 *
 	 * @param uncompSizeBits Array containing the bit representation of the uncompressed size of the array
-	 * @param compSizeBits Array containing the bit representation of the compressed size of the array
+	 * @param compSizeBits   Array containing the bit representation of the compressed size of the array
 	 * @return 16 byte array to be used as AAD
 	 */
 	public static byte[] genAAD(byte[] uncompSizeBits, byte[] compSizeBits) {
-		byte[] header = new byte[GCM_AAD_SIZE];
+		byte[] header = new byte[GCM_AAD_SIZE / Byte.SIZE];
 		System.arraycopy(compSizeBits, compSizeBits.length - 8, header, 0, 8);
 		System.arraycopy(uncompSizeBits, uncompSizeBits.length - 8, header, 8, 8);
 
@@ -49,7 +49,7 @@ public class Crypto {
 	 * encrypted data. The salt used to derive the key is returned alongside the encrypted data.
 	 *
 	 * @param bytesToEncrypt Byte array to encrypt
-	 * @param aad Associated data array (16 bytes) to detect data tampering with
+	 * @param aad            Associated data array (16 bytes) to detect data tampering with
 	 * @return Two dimensional byte array of size two, containing the salt bytes and the encrypted bytes, respectively
 	 */
 	public static byte[][] encrypt(byte[] bytesToEncrypt, byte[] aad) {
@@ -84,7 +84,7 @@ public class Crypto {
 			return saltAndCiphertext;
 		}
 
-//		Write IV and ciphertext to byte array, and encode that
+		// Write IV and ciphertext to byte array, and encode that
 		ByteBuffer byteBuffer = ByteBuffer.allocate(iv.length + encData.length);
 		byteBuffer.put(iv);
 		byteBuffer.put(encData);
@@ -100,7 +100,7 @@ public class Crypto {
 	 * and the salt that was encoded alongside the encrypted data.
 	 *
 	 * @param bytesToDecrypt Array of encrypted bytes to be decrypted
-	 * @param aad			 Associated data used to verify the encrypted data was not tampered with
+	 * @param aad            Associated data used to verify the encrypted data was not tampered with
 	 * @param salt           Salt used to hash the password
 	 * @return Decrypted array of bytes
 	 */

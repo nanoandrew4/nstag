@@ -23,7 +23,7 @@ import java.util.ArrayDeque;
  *
  * @see nStegImg
  */
-class ImgDecoder {
+public class ImgDecoder {
 	private BufferedImage img; // Image to read (A)RGB data from and to write (A)RGB modified data to
 	private int x = 0, y = 0; // Pixel coords
 	private int width, height; // Img dims
@@ -40,7 +40,7 @@ class ImgDecoder {
 	 *
 	 * @param encImg Image with data to be decoded
 	 */
-	ImgDecoder(BufferedImage encImg) {
+	public ImgDecoder(BufferedImage encImg) {
 		img = encImg;
 		numOfChannels = img.getColorModel().hasAlpha() ? 4 : 3;
 		width = img.getWidth();
@@ -65,7 +65,7 @@ class ImgDecoder {
 	 * @param bitsToRead Desired number of bits to decode and return
 	 * @return Array of bits with requested number of bits
 	 */
-	byte[] readBits(int bitsToRead) {
+	public byte[] readBits(int bitsToRead) {
 		for (; y < height; y++) {
 			for (; x < width; ) {
 				while (buffer.size() < bitsToRead && x < width)
@@ -87,7 +87,7 @@ class ImgDecoder {
 	 * @param bytesToRead Number of bytes to decode from the image
 	 * @return Array of decoded bytes
 	 */
-	byte[] readBytes(int bytesToRead) {
+	public byte[] readBytes(int bytesToRead) {
 		byte[] extractedBytes = new byte[bytesToRead];
 
 		for (int i = 0; i < bytesToRead; i++)

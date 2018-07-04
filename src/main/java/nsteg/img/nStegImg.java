@@ -1,9 +1,9 @@
 package nsteg.img;
 
+import nsteg.BitByteConv;
 import nsteg.Compressor;
 import nsteg.Crypto;
 import nsteg.Spinner;
-import nsteg.BitByteConv;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -26,7 +26,10 @@ import java.nio.file.Paths;
  * by the ImgEncoder and ImgDecoder internally. All other blocks of data must be read or written in this class,
  * in order to properly encode/decode the data.
  */
-public class nStegImg extends BitByteConv {
+public class nStegImg {
+
+	// Numbver of bits used to encode/decode the size (compressed or uncompressed) of the data
+	private final static int SIZE_BITS_COUNT = 4 * Byte.SIZE;
 
 	// Number of bits used to encode/decode how many LSBs will go in each channel
 	private final static int BITS_PER_CHANNEL_BIT_SIZE = 4;
@@ -79,17 +82,16 @@ public class nStegImg extends BitByteConv {
 		double origByteSize = dataBytes.length;
 		dataBytes = Compressor.compress(dataBytes);
 
-		Spinner.spin();
 		boolean encrypted = Crypto.offerToCrypt(true);
 
 		// Prepare data for use as part of AAD if encryption was used, and to be encoded into the image
-		byte[] uncompFileSizeBits = intToBitArray((int) origByteSize, SIZE_BITS_COUNT, false);
+		byte[] uncompFileSizeBits = BitByteConv.intToBitArray((int) origByteSize, SIZE_BITS_COUNT, false);
 
 		// Compressed size of the data, accounting for the InitVector and AAD data bits, if encryption is to be used
 		int compSize = dataBytes.length + (encrypted ? Crypto.AES_IV_SIZE + Crypto.GCM_AAD_SIZE / Byte.SIZE : 0);
-		byte[] compFileSizeBits = intToBitArray(compSize, SIZE_BITS_COUNT, false);
+		byte[] compFileSizeBits = BitByteConv.intToBitArray(compSize, SIZE_BITS_COUNT, false);
 
-		if (!dataFitsInImage(dataBytes.length * Byte.SIZE,
+		if (!dataFitsInImage(compSize * Byte.SIZE,
 				origImg.getWidth() * origImg.getHeight() * bitsPerChannel * BITS_PER_CHANNEL_BIT_SIZE,
 				encrypted))
 			return;
@@ -115,7 +117,7 @@ public class nStegImg extends BitByteConv {
 		try {
 			Spinner.printWithSpinner("Writing encoded data to disk... ");
 			ImageIO.write(ie.getImg(), "png", new File(outImgName));
-			Spinner.spin();
+			Spinner.end();
 
 			System.out.println("\nData encoded successfully into image: \"" + outImgName + "\"");
 			System.out.println("Done!\n");
@@ -149,8 +151,8 @@ public class nStegImg extends BitByteConv {
 		byte[] compFileSizeBits = id.readBits(SIZE_BITS_COUNT);
 		byte[] uncompFileSizeBits = id.readBits(SIZE_BITS_COUNT);
 
-		int compFileSize = bitArrayToInt(compFileSizeBits, false);
-		int uncompFileSize = bitArrayToInt(uncompFileSizeBits, false);
+		int compFileSize = BitByteConv.bitArrayToInt(compFileSizeBits, false);
+		int uncompFileSize = BitByteConv.bitArrayToInt(uncompFileSizeBits, false);
 
 		byte[] saltBytes = null;
 		if (encrypted)
@@ -171,7 +173,7 @@ public class nStegImg extends BitByteConv {
 			fos.write(dataBytes);
 			fos.close();
 
-			Spinner.spin();
+			Spinner.end();
 			System.out.println("Data written successfully into file: \"" + outFileName + "\"");
 			System.out.println("Done!\n");
 		} catch (IOException e) {

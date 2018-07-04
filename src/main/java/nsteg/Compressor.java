@@ -29,8 +29,9 @@ public class Compressor {
 			System.err.println("Compression failed");
 		}
 
+		Spinner.end();
 		System.out.println(
-				"Compressed data by " + String.format("%.2f", ((bytes.length - baos.size()) / bytes.length) * 100.0) + "%"
+				"Compressed data by " + String.format("%.2f", ((bytes.length - baos.size()) / (double) bytes.length) * 100.0) + "%"
 		);
 
 		return baos.size() < bytes.length ? baos.toByteArray() : bytes;
@@ -49,6 +50,7 @@ public class Compressor {
 		if (compBytes.length >= uncompSize)
 			return compBytes;
 
+		Spinner.end();
 		System.out.println();
 		Spinner.printWithSpinner("Decompressing data... ");
 
@@ -63,6 +65,7 @@ public class Compressor {
 			iis.close();
 		} catch (IOException e) {
 			System.err.println("Decompression failed");
+			e.printStackTrace();
 		}
 
 		return uncompBytes;

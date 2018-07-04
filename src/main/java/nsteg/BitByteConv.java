@@ -1,9 +1,6 @@
 package nsteg;
 
 public abstract class BitByteConv {
-
-	final protected static int SIZE_BITS_COUNT = 4 * Byte.SIZE;
-
 	/**
 	 * Converts a decimal number into an array of bits. Can handle both signed and unsigned binary numbers.
 	 *
@@ -48,6 +45,4 @@ public abstract class BitByteConv {
 				b += Math.pow(2, bits.length - 1 - i);
 		return b;
 	}
-
-
 }

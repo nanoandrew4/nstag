@@ -25,12 +25,12 @@ public class Spinner extends Thread {
 		}
 	}
 
-	private void end() {
+	public static void end() {
 		spinning = false;
 		try {
 			t.join();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
+		} catch (InterruptedException ignored) {
+			System.err.println("Spinner is already dead");
 		}
 	}
 
@@ -40,7 +40,7 @@ public class Spinner extends Thread {
 			t.setDaemon(true);
 			t.start();
 		} else
-			s.end();
+			Spinner.end();
 	}
 
 	/**
