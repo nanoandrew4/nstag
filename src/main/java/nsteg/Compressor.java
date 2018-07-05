@@ -65,7 +65,6 @@ public class Compressor {
 			iis.close();
 		} catch (IOException e) {
 			System.err.println("Decompression failed");
-			e.printStackTrace();
 		}
 
 		return uncompBytes;

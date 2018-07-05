@@ -1,5 +1,8 @@
 package nsteg;
 
+/**
+ * Contains methods for transforming integers to bit arrays, and from bit arrays to integers.
+ */
 public abstract class BitByteConv {
 	/**
 	 * Converts a decimal number into an array of bits. Can handle both signed and unsigned binary numbers.

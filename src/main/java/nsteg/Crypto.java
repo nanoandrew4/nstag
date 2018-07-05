@@ -14,11 +14,11 @@ import java.util.Scanner;
 public class Crypto {
 	private static Scanner in = new Scanner(System.in);
 
+	final public static int AES_IV_SIZE = 12; // 12 bytes, recommended for GCM
 	final public static int GCM_AAD_SIZE = 16 * Byte.SIZE; // 128 bits
 	final public static int SALT_SIZE_BITS = 8 * Byte.SIZE; // 64 bits
 
 	final private static int keyLen = 32; // 256 bit
-	final public static int AES_IV_SIZE = 12; // 12 bytes, recommended for GCM
 
 	public static boolean offerToCrypt(boolean encrypt) {
 		System.out.print("Do you wish to " + (encrypt ? "encrypt" : "decrypt") + " this data? Y/N: ");
@@ -117,7 +117,7 @@ public class Crypto {
 		try {
 			cipher = Cipher.getInstance("AES/GCM/NoPadding");
 
-			System.out.print("Enter password: ");
+			System.out.print("\nEnter password: ");
 			byte[] pass = in.nextLine().getBytes();
 
 			Spinner.printWithSpinner("Decrypting data... ");
