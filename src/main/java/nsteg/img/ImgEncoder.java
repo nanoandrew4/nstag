@@ -19,7 +19,6 @@ import java.util.ArrayDeque;
 public class ImgEncoder {
 	private BufferedImage img; // Image to read (A)RGB data from and to write (A)ARGB modified data to
 	private int x = 0, y = 0; // Pixel coords
-	private int width, height; // Dims of img
 
 	private int bitsPerChannel = 1, numOfChannels;
 	private int nextChanToWrite; // Next channel, at current LSB position in current pixel, to be written to
@@ -45,8 +44,6 @@ public class ImgEncoder {
 	public ImgEncoder(BufferedImage origImg, int bitsPerChannel) {
 		img = origImg;
 		numOfChannels = img.getColorModel().hasAlpha() ? 4 : 3;
-		width = img.getWidth();
-		height = img.getHeight();
 
 		for (int i = 0; i < encThreads.length; i++) {
 			encThreads[i] = new EncoderThread(img, numOfChannels);
@@ -110,17 +107,24 @@ public class ImgEncoder {
 	 */
 	public void encodeBytes(byte[] bytesToEncode) {
 		int currByte = 0;
-		int chunkSize = (numOfChannels == 3 ? THREE_CHAN_BPC_LCM : FOUR_CHAN_BPC_LCM) / Byte.SIZE;
+		int chunkByteSize = (numOfChannels == 3 ? THREE_CHAN_BPC_LCM : FOUR_CHAN_BPC_LCM) / Byte.SIZE;
 		while (currByte < bytesToEncode.length) {
 			int currBitPos = 0;
-			byte[] bitsToEncode = new byte[chunkSize * Byte.SIZE + (currLSB * bitsPerChannel - nextChanToWrite)]; // TODO: COULD BE PROBLEMATIC
+
+			int numOfBitsToEncode;
+			if (currByte + chunkByteSize < bytesToEncode.length)
+				numOfBitsToEncode = chunkByteSize * Byte.SIZE + (currLSB * bitsPerChannel + (currLSB > 0 || nextChanToWrite > 0 ? nextChanToWrite - 1 : 0)); // TODO: MIGHT BE TOUCHY IF MULTI LSB DOES NOT WORK
+			else
+				numOfBitsToEncode = (bytesToEncode.length - currByte) * Byte.SIZE;
+
+			byte[] bitsToEncode = new byte[numOfBitsToEncode];
 
 			while (!buffer.isEmpty())
 				bitsToEncode[currBitPos++] = buffer.pop();
 
-			for (int b = 0; b < chunkSize; b++) {
-				byte[] bits = BitByteConv.intToBitArray(bytesToEncode[b], Byte.SIZE, true);
-				if (currBitPos + Byte.SIZE < bitsToEncode.length)
+			for (; currByte < bytesToEncode.length && currBitPos < bitsToEncode.length; currByte++) {
+				byte[] bits = BitByteConv.intToBitArray(bytesToEncode[currByte], Byte.SIZE, true);
+				if (currBitPos + Byte.SIZE <= bitsToEncode.length)
 					System.arraycopy(bits, 0, bitsToEncode, currBitPos, Byte.SIZE);
 				else {
 					System.arraycopy(bits, 0, bitsToEncode, currBitPos, bitsToEncode.length - currBitPos);
@@ -132,16 +136,13 @@ public class ImgEncoder {
 			}
 
 			encodeBits(bitsToEncode);
-
-			currByte += chunkSize;
 		}
 
-		for (int i = 0; i < encThreads.length;)
+		for (int i = 0; i < encThreads.length; )
 			if (!encThreads[i].isActive()) {
 				encThreads[i].stopRunning();
 				i++;
 			}
-
 
 		System.out.println("Insert time: " + (encTime / 1000.0) + "s");
 	}
@@ -209,7 +210,16 @@ class EncoderThread extends Thread {
 		if (active)
 			return null;
 
-		active = true;
+		if (sx == 694) {
+			for (int i = 0; i < 8; i++)
+				System.out.print(bitsToWrite[i]);
+			System.out.println();
+		}
+
+//		System.out.println("Job starting at: " + sx + "," + sy);
+//		System.out.println("Writing " + bitsToWrite.length + " bits");
+//		System.out.println("sLSB: " + currLSB);
+//		System.out.println("nChan: " + nextChanToWrite);
 
 		this.bitsToWrite = bitsToWrite;
 		this.sx = sx;
@@ -218,10 +228,17 @@ class EncoderThread extends Thread {
 		this.nextChanToWrite = nextChanToWrite;
 		currBit = 0;
 
+		active = true;
+
 		endState.endX = (sx + (bitsToWrite.length / (bitsPerChannel * numOfChannels))) % width + (padded ? 1 : 0); // Will always pad to finish the pixel
 		endState.endY = sy + ((sx + (bitsToWrite.length / (bitsPerChannel * numOfChannels))) / width);
 		endState.endNextChanToWrite = (nextChanToWrite + (bitsToWrite.length % (bitsPerChannel * numOfChannels))) % numOfChannels;
 		endState.endLSB = (currLSB + ((nextChanToWrite + (bitsToWrite.length % (bitsPerChannel * numOfChannels)))) / numOfChannels) % bitsPerChannel;
+
+//		System.out.println("Job ending at: " + endState.endX + "," + endState.endY);
+//		System.out.println("eLSB: " + endState.endLSB);
+//		System.out.println("eChan: " + endState.endNextChanToWrite);
+//		System.out.println();
 
 		return endState;
 	}

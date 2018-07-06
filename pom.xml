@@ -6,7 +6,7 @@
 
     <groupId>nanoandrew4</groupId>
     <artifactId>nsteg</artifactId>
-    <version>v1.2</version>
+    <version>v1.3</version>
 
     <build>
         <plugins>

@@ -19,7 +19,7 @@ public class TestNsteg {
 				BufferedImage img = new BufferedImage(1000, 1000, imgType);
 				byte[] data = new byte[(int) Math.pow(2, 13)]; // ~8kb
 
-				Random rand = new Random();
+				Random rand = new Random(0);
 				rand.nextBytes(data);
 
 				ImgEncoder ie = new ImgEncoder(img, bpc);
@@ -30,6 +30,24 @@ public class TestNsteg {
 				int bytesToRead = BitByteConv.bitArrayToInt(id.readBits(32), false);
 
 				byte[] decData = id.readBytes(bytesToRead);
+
+				int sPos = 630;
+
+				for (int a = sPos - 5; a < sPos + 5; a++) {
+					byte[] bits = BitByteConv.intToBitArray(data[a], 8, true);
+					for (byte b : bits)
+						System.out.print(b);
+					System.out.print(" ");
+				}
+				System.out.println();
+
+				for (int a = sPos - 5; a < sPos + 5; a++) {
+					byte[] bits = BitByteConv.intToBitArray(decData[a], 8, true);
+					for (byte b : bits)
+						System.out.print(b);
+					System.out.print(" ");
+				}
+				System.out.println();
 
 				assertArrayEquals(data, decData);
 
