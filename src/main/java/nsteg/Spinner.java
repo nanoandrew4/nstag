@@ -6,22 +6,23 @@ package nsteg;
  */
 public class Spinner extends Thread {
 	private static Thread t;
-	private static Spinner s;
 
 	private char[] chars = {'|', '/', '-', '\\'};
 	private static boolean spinning = false;
+	private static boolean deleted;
 
 	@Override
 	public void run() {
 		spinning = true;
 		for (int i = 0; spinning; i++) {
 			System.out.print(chars[i % chars.length]);
+			deleted = false;
 			try {
 				sleep(500);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
+			} catch (InterruptedException ignored) {
 			}
 			System.out.print("\b \b");
+			deleted = true;
 		}
 	}
 
@@ -29,6 +30,8 @@ public class Spinner extends Thread {
 		spinning = false;
 		try {
 			t.join();
+			if (!deleted)
+				System.out.print("\b \b");
 		} catch (InterruptedException ignored) {
 			System.err.println("Spinner is already dead");
 		}
@@ -36,7 +39,7 @@ public class Spinner extends Thread {
 
 	public static void spin() {
 		if (t == null || !Spinner.spinning) {
-			t = new Thread(s = new Spinner());
+			t = new Thread(new Spinner());
 			t.setDaemon(true);
 			t.start();
 		} else
@@ -50,7 +53,7 @@ public class Spinner extends Thread {
 	 */
 	public static void printWithSpinner(String str) {
 		if (spinning)
-			spin();
+			end();
 		System.out.print(str);
 		spin();
 	}

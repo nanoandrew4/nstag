@@ -13,7 +13,6 @@ Simply run the program as you would any other jar file, from the command line (e
 When using image encoding, the number of bits per channel are the number of least significant bits to use in each channel, in each pixel, to encode the file. Since each value is an unsigned byte, you can have a minimum of 1, and a maximum of 8 for this value. Higher values mean more data can be encoded, but the image will look less like the original.
 
 ## How it works:
----
 #### Encoding and decoding
 Each pixel in the image is composed of three or four channels, depending on the image type. The four channel types are alpha, red, green and blue. The first does not exist on images with three channels (which contain the RGB channels), and does exist on images with four channels (ARGB). The alpha channel controls the transparency of the pixel.
 
@@ -40,5 +39,3 @@ The first 4 bits written specify how many least significant bits were used. The 
 #### Encoding and decoding high level overview
 
 ![HL overview](https://raw.githubusercontent.com/nanoandrew4/nsteg/master/readme_res/encdec.png)
-
----

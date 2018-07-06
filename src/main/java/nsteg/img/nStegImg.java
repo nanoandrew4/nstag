@@ -77,12 +77,10 @@ public class nStegImg {
 			return;
 		}
 
-		ImgEncoder ie = new ImgEncoder(origImg, bitsPerChannel);
-
 		double origByteSize = dataBytes.length;
 		dataBytes = Compressor.compress(dataBytes);
 
-		boolean encrypted = Crypto.offerToCrypt(true);
+		boolean encrypted = /*Crypto.offerToCrypt(true)*/ false;
 
 		// Prepare data for use as part of AAD if encryption was used, and to be encoded into the image
 		byte[] uncompFileSizeBits = BitByteConv.intToBitArray((int) origByteSize, SIZE_BITS_COUNT, false);
@@ -104,7 +102,10 @@ public class nStegImg {
 			dataBytes = saltAndDataBits[1]; // Encrypted data, with IV and AAD
 		}
 
+		ImgEncoder ie = new ImgEncoder(origImg, bitsPerChannel);
+
 		Spinner.printWithSpinner("Encoding metadata... ");
+		long start = System.currentTimeMillis();
 		ie.encodeBits(compFileSizeBits);
 		ie.encodeBits(uncompFileSizeBits);
 
@@ -113,6 +114,7 @@ public class nStegImg {
 
 		Spinner.printWithSpinner("Encoding data to image... ");
 		ie.encodeBytes(dataBytes);
+		System.out.println("Enc time: " + (System.currentTimeMillis() - start) / 1000.0 + "s");
 
 		try {
 			Spinner.printWithSpinner("Writing encoded data to disk... ");
