@@ -31,7 +31,7 @@ public class TestNsteg {
 
 				byte[] decData = id.readBytes(bytesToRead);
 
-				int sPos = 630;
+				int sPos = 315;
 
 				for (int a = sPos - 5; a < sPos + 5; a++) {
 					byte[] bits = BitByteConv.intToBitArray(data[a], 8, true);

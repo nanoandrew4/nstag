@@ -51,7 +51,11 @@ public class ImgDecoder {
 		 * if the image is of ARGB type, or the first two pixels, if the image is of type RGB, since this value is
 		 * encoded using only one LSB.
 		 */
-		bitsPerChannel = BitByteConv.bitArrayToInt(readBits(4), false);
+		byte[] bpc = readBits(4);
+		for (byte b : bpc)
+			System.out.print(b);
+		System.out.println();
+		bitsPerChannel = BitByteConv.bitArrayToInt(bpc, false);
 		buffer.clear();
 	}
 

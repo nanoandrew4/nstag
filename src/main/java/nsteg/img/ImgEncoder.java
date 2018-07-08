@@ -17,7 +17,7 @@ import java.util.ArrayDeque;
  * means no space is wasted.
  */
 public class ImgEncoder {
-	private BufferedImage img; // Image to read (A)RGB data from and to write (A)ARGB modified data to
+	private BufferedImage img; // Image to read (A)RGB data from and to write (A)RGB modified data to
 	private int x = 0, y = 0; // Pixel coords
 
 	private int bitsPerChannel = 1, numOfChannels;
@@ -74,6 +74,24 @@ public class ImgEncoder {
 		return img;
 	}
 
+	private void encodeBits(byte[] bitsToEncode, boolean padding) {
+		for (int i = 0; i < encThreads.length; i %= encThreads.length) {
+			if (!encThreads[i].isActive()) {
+				EndState endState = encThreads[i].submitJob(bitsToEncode, x, y, currLSB, nextChanToWrite, padding);
+				x = endState.endX;
+				y = endState.endY;
+				currLSB = endState.endLSB;
+				nextChanToWrite = endState.endNextChanToWrite;
+				break;
+			} else {
+				try {
+					Thread.sleep(5);
+				} catch (InterruptedException ignored) {
+				}
+			}
+		}
+	}
+
 	/**
 	 * Encodes an array of bits into the image. This is done by writing the data bits to the least significant bit(s)
 	 * of the (A)RGB channels of each pixel of the image, sequentially. The number of LSBs used in each channel is
@@ -81,10 +99,11 @@ public class ImgEncoder {
 	 *
 	 * @param bitsToEncode Array containing only bits, that are to be encoded in the image
 	 */
+
 	public void encodeBits(byte[] bitsToEncode) {
 		for (int i = 0; i < encThreads.length; i %= encThreads.length) {
 			if (!encThreads[i].isActive()) {
-				EndState endState = encThreads[i].submitJob(bitsToEncode, x, y, currLSB, nextChanToWrite, !buffer.isEmpty());
+				EndState endState = encThreads[i].submitJob(bitsToEncode, x, y, currLSB, nextChanToWrite, false);
 				x = endState.endX;
 				y = endState.endY;
 				currLSB = endState.endLSB;
@@ -113,9 +132,12 @@ public class ImgEncoder {
 
 			int numOfBitsToEncode;
 			if (currByte + chunkByteSize < bytesToEncode.length)
-				numOfBitsToEncode = chunkByteSize * Byte.SIZE + (currLSB * bitsPerChannel + (currLSB > 0 || nextChanToWrite > 0 ? nextChanToWrite - 1 : 0)); // TODO: MIGHT BE TOUCHY IF MULTI LSB DOES NOT WORK
+				numOfBitsToEncode = chunkByteSize * Byte.SIZE + (currLSB > 0 || nextChanToWrite > 0 ? (bitsPerChannel - currLSB) * numOfChannels - nextChanToWrite : 0);
 			else
-				numOfBitsToEncode = (bytesToEncode.length - currByte) * Byte.SIZE;
+				numOfBitsToEncode = (bytesToEncode.length - currByte) * Byte.SIZE + buffer.size();
+
+//			if (numOfBitsToEncode != THREE_CHAN_BPC_LCM)
+//				System.out.println(numOfBitsToEncode);
 
 			byte[] bitsToEncode = new byte[numOfBitsToEncode];
 
@@ -135,7 +157,11 @@ public class ImgEncoder {
 				currBitPos += Byte.SIZE;
 			}
 
-			encodeBits(bitsToEncode);
+			boolean padding = currByte < bytesToEncode.length;
+			if (padding)
+				padding = numOfChannels == 3 ? (bitsToEncode.length != THREE_CHAN_BPC_LCM) : (bitsToEncode.length != FOUR_CHAN_BPC_LCM);
+
+			encodeBits(bitsToEncode, padding);
 		}
 
 		for (int i = 0; i < encThreads.length; )
@@ -187,6 +213,11 @@ class EncoderThread extends Thread {
 	public void run() {
 		while (running) {
 			if (active) {
+				if (bitsToWrite.length == 4) {
+					for (byte b : bitsToWrite)
+						System.out.print(b);
+					System.out.println();
+				}
 				for (int y = sy; y < height && currBit < bitsToWrite.length; y++) {
 					for (int x = sx; x < width && currBit < bitsToWrite.length; ) {
 						img.setRGB(x, y, insertDataToPixel(img.getRGB(x, y)));
@@ -210,16 +241,16 @@ class EncoderThread extends Thread {
 		if (active)
 			return null;
 
-		if (sx == 694) {
-			for (int i = 0; i < 8; i++)
-				System.out.print(bitsToWrite[i]);
-			System.out.println();
-		}
+//		if (bitsToWrite.length == 2521) {
+//			for (int i = 0; i < 8; i++)
+//				System.out.print(bitsToWrite[i]);
+//			System.out.println();
+//		}
 
-//		System.out.println("Job starting at: " + sx + "," + sy);
-//		System.out.println("Writing " + bitsToWrite.length + " bits");
-//		System.out.println("sLSB: " + currLSB);
-//		System.out.println("nChan: " + nextChanToWrite);
+		System.out.println("Job starting at: " + sx + "," + sy);
+		System.out.println("Writing " + bitsToWrite.length + " bits");
+		System.out.println("sLSB: " + currLSB);
+		System.out.println("nChan: " + nextChanToWrite);
 
 		this.bitsToWrite = bitsToWrite;
 		this.sx = sx;
@@ -235,10 +266,10 @@ class EncoderThread extends Thread {
 		endState.endNextChanToWrite = (nextChanToWrite + (bitsToWrite.length % (bitsPerChannel * numOfChannels))) % numOfChannels;
 		endState.endLSB = (currLSB + ((nextChanToWrite + (bitsToWrite.length % (bitsPerChannel * numOfChannels)))) / numOfChannels) % bitsPerChannel;
 
-//		System.out.println("Job ending at: " + endState.endX + "," + endState.endY);
-//		System.out.println("eLSB: " + endState.endLSB);
-//		System.out.println("eChan: " + endState.endNextChanToWrite);
-//		System.out.println();
+		System.out.println("Job ending at: " + endState.endX + "," + endState.endY);
+		System.out.println("eLSB: " + endState.endLSB);
+		System.out.println("eChan: " + endState.endNextChanToWrite);
+		System.out.println();
 
 		return endState;
 	}
