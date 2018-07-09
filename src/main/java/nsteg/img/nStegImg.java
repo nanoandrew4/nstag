@@ -107,7 +107,6 @@ public class nStegImg {
 		ImgEncoder ie = new ImgEncoder(origImg, bitsPerChannel);
 
 		Spinner.printWithSpinner("Encoding metadata... ");
-		long start = System.currentTimeMillis();
 		ie.encodeBits(compFileSizeBits);
 		ie.encodeBits(uncompFileSizeBits);
 
@@ -116,7 +115,7 @@ public class nStegImg {
 
 		Spinner.printWithSpinner("Encoding data to image... ");
 		ie.encodeBytes(dataBytes);
-		System.out.println("Enc time: " + (System.currentTimeMillis() - start) / 1000.0 + "s");
+		ie.stopThreads();
 
 		try {
 			Spinner.printWithSpinner("Writing encoded data to disk... ");

@@ -21,6 +21,8 @@ public class Crypto {
 
 	final private static int keyLen = 32; // 256 bit
 
+	private static byte[] origCiph, origAAD;
+
 	public static boolean offerToCrypt(boolean encrypt) {
 		System.out.print("Do you wish to " + (encrypt ? "encrypt" : "decrypt") + " this data? Y/N: ");
 		return "y".equalsIgnoreCase(in.nextLine());
@@ -78,8 +80,9 @@ public class Crypto {
 			cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"), new GCMParameterSpec(GCM_AAD_SIZE, iv));
 			Arrays.fill(key, (byte) 0);
 
+			origAAD = aad;
 			cipher.updateAAD(aad); // Add associated data, to prevent tampering with encrypted data
-			encData = cipher.doFinal(bytesToEncrypt); // Encrypt
+			origCiph = encData = cipher.doFinal(bytesToEncrypt); // Encrypt
 		} catch (GeneralSecurityException e) {
 			System.err.println("Encryption failed");
 			return saltAndCiphertext;

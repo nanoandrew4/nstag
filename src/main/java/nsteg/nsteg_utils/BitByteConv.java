@@ -42,7 +42,7 @@ public abstract class BitByteConv {
 	 */
 	public static int bitArrayToInt(byte[] bits, boolean signed) {
 		boolean neg = signed && bits[0] == 1;
-		int b = signed && neg ? -128 : 0;
+		int b = signed && neg ? -(int) (Math.pow(2, bits.length - 1)) : 0;
 		for (int i = (signed && neg ? 1 : 0); i < bits.length; i++)
 			if (bits[i] != 0)
 				b += Math.pow(2, bits.length - 1 - i);

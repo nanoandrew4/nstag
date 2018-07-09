@@ -52,9 +52,8 @@ public class ImgEncoder {
 		EncoderThread.setBitsPerChannel(1);
 		encodeBits(BitByteConv.intToBitArray(bitsPerChannel, 4, false), false);
 
-		while (encThreads[0].isActive()) {
+		while (encThreads[0].isActive())
 			sleep(2);
-		}
 
 		// Use two pixels for bitsPerChannel encoding, so restart encoding at 3rd pixel, if image only has three channels
 		if (numOfChannels == 3) {
@@ -94,6 +93,7 @@ public class ImgEncoder {
 				break;
 			} else
 				sleep(1);
+			i++;
 		}
 	}
 
@@ -116,6 +116,7 @@ public class ImgEncoder {
 				break;
 			} else
 				sleep(1);
+			i++;
 		}
 	}
 
@@ -155,13 +156,13 @@ public class ImgEncoder {
 				currBitPos += Byte.SIZE;
 			}
 
-			boolean padding = currByte < bytesToEncode.length;
-			if (padding)
-				padding = numOfChannels == 3 ? (bitsToEncode.length != THREE_CHAN_BPC_LCM) : (bitsToEncode.length != FOUR_CHAN_BPC_LCM);
+			boolean padding = currLSB > 0 || nextChanToWrite > 0;
 
 			encodeBits(bitsToEncode, padding);
 		}
+	}
 
+	public void stopThreads() {
 		for (int i = 0; i < encThreads.length; ) {
 			if (!encThreads[i].isActive()) {
 				encThreads[i].stopRunning();

@@ -26,6 +26,7 @@ public class TestNsteg {
 				ImgEncoder ie = new ImgEncoder(img, bpc);
 				ie.encodeBits(BitByteConv.intToBitArray(data.length, 32, false));
 				ie.encodeBytes(data);
+				ie.stopThreads();
 
 				ImgDecoder id = new ImgDecoder(img);
 				byte[] fSizeBits = id.readBits(32);
