@@ -1,6 +1,7 @@
-package nsteg.img;
+package nsteg.img.decoder;
 
-import nsteg.BitByteConv;
+import nsteg.nsteg_utils.BitByteConv;
+import nsteg.img.nStegImg;
 
 import java.awt.image.BufferedImage;
 import java.util.ArrayDeque;
@@ -51,11 +52,7 @@ public class ImgDecoder {
 		 * if the image is of ARGB type, or the first two pixels, if the image is of type RGB, since this value is
 		 * encoded using only one LSB.
 		 */
-		byte[] bpc = readBits(4);
-		for (byte b : bpc)
-			System.out.print(b);
-		System.out.println();
-		bitsPerChannel = BitByteConv.bitArrayToInt(bpc, false);
+		bitsPerChannel = BitByteConv.bitArrayToInt(readBits(4), false);
 		buffer.clear();
 	}
 

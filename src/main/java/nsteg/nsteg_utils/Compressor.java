@@ -1,4 +1,6 @@
-package nsteg;
+package nsteg.nsteg_utils;
+
+import nsteg.Spinner;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;

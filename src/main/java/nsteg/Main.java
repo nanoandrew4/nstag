@@ -1,3 +1,5 @@
+package nsteg;
+
 import nsteg.img.nStegImg;
 
 import java.util.Scanner;
@@ -11,12 +13,13 @@ public class Main {
 			System.out.println("Choose one of the following:");
 			System.out.println("1. Encode a file inside an image");
 			System.out.println("2. Decode a file from an image");
+			System.out.println("3. Benchmark encoding speed");
 			System.out.println("0. Exit nsteg");
 			System.out.print("\n>> ");
 
 			do {
 				opt = in.nextInt();
-			} while (opt < 0 || opt > 2);
+			} while (opt < 0 || opt > 3);
 
 			in.nextLine();
 
@@ -43,6 +46,9 @@ public class Main {
 					System.out.print("Path and file name under which to save decoded data (with appropriate extension): ");
 					outFilePath = in.nextLine();
 					nStegImg.decode(encodedImgPath, outFilePath);
+					break;
+				case 3:
+					Benchmark.run();
 					break;
 				default:
 					return;

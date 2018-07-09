@@ -1,6 +1,7 @@
-package nsteg;
+package nsteg.nsteg_utils;
 
 import com.lambdaworks.crypto.SCrypt;
+import nsteg.Spinner;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;

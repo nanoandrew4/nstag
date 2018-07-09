@@ -1,9 +1,11 @@
 package nsteg.img;
 
-import nsteg.BitByteConv;
-import nsteg.Compressor;
-import nsteg.Crypto;
+import nsteg.nsteg_utils.BitByteConv;
+import nsteg.nsteg_utils.Compressor;
+import nsteg.nsteg_utils.Crypto;
 import nsteg.Spinner;
+import nsteg.img.decoder.ImgDecoder;
+import nsteg.img.encoder.ImgEncoder;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -80,7 +82,7 @@ public class nStegImg {
 		double origByteSize = dataBytes.length;
 		dataBytes = Compressor.compress(dataBytes);
 
-		boolean encrypted = /*Crypto.offerToCrypt(true)*/ false;
+		boolean encrypted = Crypto.offerToCrypt(true);
 
 		// Prepare data for use as part of AAD if encryption was used, and to be encoded into the image
 		byte[] uncompFileSizeBits = BitByteConv.intToBitArray((int) origByteSize, SIZE_BITS_COUNT, false);

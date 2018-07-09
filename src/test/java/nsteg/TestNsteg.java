@@ -1,7 +1,8 @@
 package nsteg;
 
-import nsteg.img.ImgDecoder;
-import nsteg.img.ImgEncoder;
+import nsteg.img.decoder.ImgDecoder;
+import nsteg.img.encoder.ImgEncoder;
+import nsteg.nsteg_utils.BitByteConv;
 import org.junit.Test;
 
 import java.awt.image.BufferedImage;
@@ -19,7 +20,7 @@ public class TestNsteg {
 				BufferedImage img = new BufferedImage(1000, 1000, imgType);
 				byte[] data = new byte[(int) Math.pow(2, 13)]; // ~8kb
 
-				Random rand = new Random(0);
+				Random rand = new Random();
 				rand.nextBytes(data);
 
 				ImgEncoder ie = new ImgEncoder(img, bpc);
@@ -27,27 +28,10 @@ public class TestNsteg {
 				ie.encodeBytes(data);
 
 				ImgDecoder id = new ImgDecoder(img);
-				int bytesToRead = BitByteConv.bitArrayToInt(id.readBits(32), false);
+				byte[] fSizeBits = id.readBits(32);
+				int bytesToRead = BitByteConv.bitArrayToInt(fSizeBits, false);
 
 				byte[] decData = id.readBytes(bytesToRead);
-
-				int sPos = 315;
-
-				for (int a = sPos - 5; a < sPos + 5; a++) {
-					byte[] bits = BitByteConv.intToBitArray(data[a], 8, true);
-					for (byte b : bits)
-						System.out.print(b);
-					System.out.print(" ");
-				}
-				System.out.println();
-
-				for (int a = sPos - 5; a < sPos + 5; a++) {
-					byte[] bits = BitByteConv.intToBitArray(decData[a], 8, true);
-					for (byte b : bits)
-						System.out.print(b);
-					System.out.print(" ");
-				}
-				System.out.println();
 
 				assertArrayEquals(data, decData);
 

@@ -1,4 +1,4 @@
-package nsteg;
+package nsteg.nsteg_utils;
 
 /**
  * Contains methods for transforming integers to bit arrays, and from bit arrays to integers.
