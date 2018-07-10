@@ -4,12 +4,19 @@ import nsteg.nsteg_utils.BitByteConv;
 
 import java.awt.image.BufferedImage;
 
+/**
+ * This class operates on an image to encode data passed on by ImgEncoder. It does so in a way that allows threaded
+ * encoding, in order to use system resources fully. In essence, ImgEncoder submits a job, and this class tells it
+ * where it will finish encoding the passed data, so that ImgEncoder can then assign more jobs to other instances of
+ * this class.
+ */
 public class EncoderThread extends Thread {
+	// Each thread has its own instance, so it can load values and return them to ImgEncoder, so it can continue submitting jobs
 	private EndState endState = new EndState();
 
 	private BufferedImage img;
-	private boolean running = true;
-	private boolean active = false;
+	private boolean running = true; // False will cause the thread to exit
+	private boolean active = false; // Whether the thread is currently encoding information or is waiting for a job
 
 	private int width, height;
 
@@ -27,14 +34,22 @@ public class EncoderThread extends Thread {
 		height = img.getHeight();
 	}
 
-	public static void setBitsPerChannel(int bitsPerChannel) {
+	static void setBitsPerChannel(int bitsPerChannel) {
 		EncoderThread.bitsPerChannel = bitsPerChannel;
 	}
 
+	/**
+	 * Ends loop in the run() method, effectively terminating the thread.
+	 */
 	void stopRunning() {
 		running = false;
 	}
 
+	/**
+	 * Returns whether this thread is busy encoding bits to the image.
+	 *
+	 * @return True if it is encoding data, false if it is available to encode data
+	 */
 	boolean isActive() {
 		return active;
 	}
@@ -58,31 +73,61 @@ public class EncoderThread extends Thread {
 		}
 	}
 
-	EndState submitJob(byte[] bitsToWrite, int sx, int sy, int currLSB, int nextChanToWrite, boolean padded) {
-		if (active)
+	/**
+	 * Submits a job for this thread to carry out. Initial encoding positions are given, and a EndState instance is
+	 * returned containing where the encoding process this thread will carry out will end, so that ImgEncoder can
+	 * submit more jobs without having to wait for this one to finish.
+	 *
+	 * @param bitsToWrite     Array of bits to write to encode
+	 * @param sx              Starting 'x' coordinate in the image
+	 * @param sy              Starting 'y' coordinate in the image
+	 * @param sLSB            Starting least significant bit position
+	 * @param nextChanToWrite First channel to write to
+	 * @return EndState instance containing ending positions of the starting values passed, so that jobs can quickly
+	 * be submitted to other threads, without having to wait for this one to finish
+	 */
+	EndState submitJob(byte[] bitsToWrite, int sx, int sy, int sLSB, int nextChanToWrite) {
+		if (active) {
+			System.err.println("Thread was busy while attempting to submit job!");
 			return null;
+		}
 
 		this.bitsToWrite = bitsToWrite;
 		this.sx = sx;
 		this.sy = sy;
-		this.currLSB = currLSB;
+		this.currLSB = sLSB;
 		this.nextChanToWrite = nextChanToWrite;
-		currBit = 0;
+		currBit = 0; // Start reading bitsToWrite from start
 
 		active = true;
 
-		endState.endX = (sx + (bitsToWrite.length / (bitsPerChannel * numOfChannels))) % width + (padded ? 1 : 0); // Will always pad to finish the pixel
+		/*
+		 * The following calculations to determine end positions may seem a bit obscure, but can be quickly worked out
+		 * on paper. The XY end coordinates of the last pixel written to can be simply calculated by looking at how
+		 * many bits each pixel can take, and calculating the offset based on the number of bits to write. The X coord
+		 * requires an extra step, in case that the LSB wraps around, an extra pixel is required, which is what the
+		 * second statement dealing with endX does.
+		 *
+		 * The end channel is also fairly straightforward, since the channel simply loops around, which a modulus
+		 * operation lets us know where the constant looping through the possible channels will end.
+		 *
+		 * The end least significant bit is a bit more obscure, but it is basically calculated by determining the
+		 * number of times that the available channels will be cycled through in order to encode the data, then adding
+		 * that to the initial starting LSB, and using the modulo operator to get the final LSB.
+		 */
+		endState.endX = (sx + (bitsToWrite.length / (bitsPerChannel * numOfChannels))) % width;
+		endState.endX += (sLSB + ((nextChanToWrite + (bitsToWrite.length % (bitsPerChannel * numOfChannels))) / numOfChannels)) / bitsPerChannel;
 		endState.endY = sy + ((sx + (bitsToWrite.length / (bitsPerChannel * numOfChannels))) / width);
-		endState.endNextChanToWrite = (nextChanToWrite + bitsToWrite.length % numOfChannels) % numOfChannels;
-		endState.endLSB = (currLSB + ((nextChanToWrite + (bitsToWrite.length % (bitsPerChannel * numOfChannels)))) / numOfChannels) % bitsPerChannel;
+		endState.endNextChanToWrite = (nextChanToWrite + bitsToWrite.length) % numOfChannels;
+		endState.endLSB = (sLSB + ((nextChanToWrite + (bitsToWrite.length % (bitsPerChannel * numOfChannels))) / numOfChannels)) % bitsPerChannel;
 
 		return endState;
 	}
 
 	/**
-	 * Writes bits from the buffer to the various LSBs in the various channels the current pixel being worked on
-	 * has. Because RGB images have 3 channels, encoding data usually means that you will finish encoding before
-	 * exhausting all the LSBs in all the channels of the last necessary pixel.
+	 * Writes bits to the various LSBs in the various channels the current pixel being worked on has. Because RGB images
+	 * have 3 channels, encoding data usually means that you will finish encoding before exhausting all the LSBs in all
+	 * the channels of the last necessary pixel.
 	 * <p><br>
 	 * If one byte (8 bits) were encoded in an RGB image, we would need 3 pixels to hold the 8 bits (assuming we
 	 * used one LSB), but would have one bit left, in which no data would be written, which would be a waste, aside

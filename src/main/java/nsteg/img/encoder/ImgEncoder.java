@@ -3,7 +3,6 @@ package nsteg.img.encoder;
 import nsteg.nsteg_utils.BitByteConv;
 
 import java.awt.image.BufferedImage;
-import java.util.ArrayDeque;
 
 /**
  * This class will encode data to the specified image, using the specified number of least significant bit(s) in each
@@ -20,15 +19,20 @@ public class ImgEncoder {
 	private BufferedImage img; // Image to read (A)RGB data from and to write (A)RGB modified data to
 	private int x = 0, y = 0; // Pixel coords
 
-	private int bitsPerChannel = 1, numOfChannels;
 	private int nextChanToWrite; // Next channel, at current LSB position in current pixel, to be written to
 	private int currLSB; // Current least significant bit position, for all channels, at the current pixel
 
-	private final int THREE_CHAN_BPC_LCM = 645120;
-	private final int FOUR_CHAN_BPC_LCM = 860160;
+	/*
+	 * These numbers specify the maximum number of bytes that a thread should have to handle. I promise they are not
+	 * magic numbers. Both of them are, at their core, the lowest common multiple of all the possible number of bits
+	 * a pixel could have with the available channels. For three channel images, the lowest common denominator is 2520,
+	 * and for four channel images, 3360. These are just the values stated, but scaled up, so threads spend more time
+	 * encoding and less time writing back and forth.
+	 */
+	private final int THREE_CHAN_BLOCK_SIZE = 80640; // 645120 bits
+	private final int FOUR_CHAN_BLOCK_SIZE = 107520; // 860160 bits
 
-	// Aids in buffering right amount of data, in order to fill each pixel properly
-	private ArrayDeque<Byte> buffer = new ArrayDeque<>();
+	private int chunkBitSize;
 
 	private EncoderThread[] encThreads = new EncoderThread[Runtime.getRuntime().availableProcessors() - 1];
 
@@ -41,7 +45,8 @@ public class ImgEncoder {
 	 */
 	public ImgEncoder(BufferedImage origImg, int bitsPerChannel) {
 		img = origImg;
-		numOfChannels = img.getColorModel().hasAlpha() ? 4 : 3;
+		int numOfChannels = img.getColorModel().hasAlpha() ? 4 : 3;
+		chunkBitSize = (numOfChannels == 3 ? THREE_CHAN_BLOCK_SIZE : FOUR_CHAN_BLOCK_SIZE) * Byte.SIZE;
 
 		for (int i = 0; i < encThreads.length; i++) {
 			encThreads[i] = new EncoderThread(img, numOfChannels);
@@ -50,7 +55,7 @@ public class ImgEncoder {
 
 		// Encode desired LSBs per channel using only LSB of first (or first and second, depending on number of channels) pixel(s)
 		EncoderThread.setBitsPerChannel(1);
-		encodeBits(BitByteConv.intToBitArray(bitsPerChannel, 4, false), false);
+		encodeBits(BitByteConv.intToBitArray(bitsPerChannel, 4, false));
 
 		while (encThreads[0].isActive())
 			sleep(2);
@@ -62,7 +67,6 @@ public class ImgEncoder {
 		}
 
 		EncoderThread.setBitsPerChannel(bitsPerChannel);
-		this.bitsPerChannel = bitsPerChannel;
 	}
 
 	/**
@@ -82,25 +86,12 @@ public class ImgEncoder {
 		}
 	}
 
-	private void encodeBits(byte[] bitsToEncode, boolean padding) {
-		for (int i = 0; i < encThreads.length; i %= encThreads.length) {
-			if (!encThreads[i].isActive()) {
-				EndState endState = encThreads[i].submitJob(bitsToEncode, x, y, currLSB, nextChanToWrite, padding);
-				x = endState.endX;
-				y = endState.endY;
-				currLSB = endState.endLSB;
-				nextChanToWrite = endState.endNextChanToWrite;
-				break;
-			} else
-				sleep(1);
-			i++;
-		}
-	}
-
 	/**
 	 * Encodes an array of bits into the image. This is done by writing the data bits to the least significant bit(s)
 	 * of the (A)RGB channels of each pixel of the image, sequentially. The number of LSBs used in each channel is
-	 * specified when instantiating the object this method is called from.
+	 * specified when instantiating the object this method is called from. Through the use of the threaded encoder,
+	 * a job is submitted to an available thread, and the end positions of the encoding process are returned. The job
+	 * will be carried out in parallel.
 	 *
 	 * @param bitsToEncode Array containing only bits, that are to be encoded in the image
 	 */
@@ -108,7 +99,7 @@ public class ImgEncoder {
 	public void encodeBits(byte[] bitsToEncode) {
 		for (int i = 0; i < encThreads.length; i %= encThreads.length) {
 			if (!encThreads[i].isActive()) {
-				EndState endState = encThreads[i].submitJob(bitsToEncode, x, y, currLSB, nextChanToWrite, false);
+				EndState endState = encThreads[i].submitJob(bitsToEncode, x, y, currLSB, nextChanToWrite);
 				x = endState.endX;
 				y = endState.endY;
 				currLSB = endState.endLSB;
@@ -121,51 +112,47 @@ public class ImgEncoder {
 	}
 
 	/**
-	 * Encodes an array of bytes into the image, by breaking each byte down into an array of 8 bits, and calling
-	 * encodeBits(byte[] bitsToEncode). See that method for more information.
+	 * Encodes an array of bytes into the image, by breaking chunks of bytes into a bit array, and using
+	 * encodeBits(byte[] bitsToEncode) in order to carry out the encoding of that bit array.
 	 *
 	 * @param bytesToEncode Array of bytes to be encoded in the image
 	 */
 	public void encodeBytes(byte[] bytesToEncode) {
 		int currByte = 0;
-		int chunkByteSize = (numOfChannels == 3 ? THREE_CHAN_BPC_LCM : FOUR_CHAN_BPC_LCM) / Byte.SIZE;
+		int chunkByteSize = chunkBitSize / Byte.SIZE;
 		while (currByte < bytesToEncode.length) {
 			int currBitPos = 0;
 
 			int numOfBitsToEncode;
 			if (currByte + chunkByteSize < bytesToEncode.length)
-				numOfBitsToEncode = chunkByteSize * Byte.SIZE + (currLSB > 0 || nextChanToWrite > 0 ? (bitsPerChannel - currLSB) * numOfChannels - nextChanToWrite : 0);
+				numOfBitsToEncode = chunkBitSize;
 			else
-				numOfBitsToEncode = (bytesToEncode.length - currByte) * Byte.SIZE + buffer.size();
+				numOfBitsToEncode = (bytesToEncode.length - currByte) * Byte.SIZE;
 
 			byte[] bitsToEncode = new byte[numOfBitsToEncode];
 
-			while (!buffer.isEmpty())
-				bitsToEncode[currBitPos++] = buffer.pop();
-
 			for (; currByte < bytesToEncode.length && currBitPos < bitsToEncode.length; currByte++) {
 				byte[] bits = BitByteConv.intToBitArray(bytesToEncode[currByte], Byte.SIZE, true);
-				if (currBitPos + Byte.SIZE <= bitsToEncode.length)
-					System.arraycopy(bits, 0, bitsToEncode, currBitPos, Byte.SIZE);
-				else {
-					System.arraycopy(bits, 0, bitsToEncode, currBitPos, bitsToEncode.length - currBitPos);
-					for (int i = bitsToEncode.length - currBitPos; i < Byte.SIZE; i++)
-						buffer.add(bits[i]);
-				}
-
+				System.arraycopy(bits, 0, bitsToEncode, currBitPos, Byte.SIZE);
 				currBitPos += Byte.SIZE;
 			}
 
-			boolean padding = currLSB > 0 || nextChanToWrite > 0;
-
-			encodeBits(bitsToEncode, padding);
+			encodeBits(bitsToEncode);
 		}
 	}
 
+	/**
+	 * Stops all EncoderThread instances. Must be called once this ImgEncoder instance has finished writing data,
+	 * otherwise the encoding will not complete successfully.
+	 */
 	public void stopThreads() {
 		for (int i = 0; i < encThreads.length; ) {
 			if (!encThreads[i].isActive()) {
 				encThreads[i].stopRunning();
+				try {
+					encThreads[i].join();
+				} catch (InterruptedException ignored) {
+				}
 				i++;
 			} else
 				sleep(1);
