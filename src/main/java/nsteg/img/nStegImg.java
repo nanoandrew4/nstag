@@ -1,11 +1,11 @@
 package nsteg.img;
 
-import nsteg.nsteg_utils.BitByteConv;
-import nsteg.nsteg_utils.Compressor;
-import nsteg.nsteg_utils.Crypto;
 import nsteg.Spinner;
 import nsteg.img.decoder.ImgDecoder;
 import nsteg.img.encoder.ImgEncoder;
+import nsteg.nsteg_utils.BitByteConv;
+import nsteg.nsteg_utils.Compressor;
+import nsteg.nsteg_utils.Crypto;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -42,9 +42,9 @@ public class nStegImg {
 			requiredBits += Crypto.GCM_AAD_SIZE + Crypto.AES_IV_SIZE + Crypto.SALT_SIZE_BITS;
 
 		if (requiredBits > maxBitsInImage) {
-			System.err.println("Not enough space in image, consider allowing more bits");
-			System.err.println("Required bits: " + requiredBits);
-			System.err.println("Available bits: " + maxBitsInImage);
+			System.err.println("Not enough space in image, consider allowing more bits or using a larger image");
+			System.err.println("Required capacity: " + requiredBits);
+			System.err.println("Bits that can be encoded: " + maxBitsInImage);
 			System.out.println();
 			return false;
 		}
@@ -85,14 +85,14 @@ public class nStegImg {
 		boolean encrypted = Crypto.offerToCrypt(true);
 
 		// Prepare data for use as part of AAD if encryption was used, and to be encoded into the image
-		byte[] uncompFileSizeBits = BitByteConv.intToBitArray((int) origByteSize, SIZE_BITS_COUNT, false);
+		byte[] uncompFileSizeBits = BitByteConv.intToBitArray((int) origByteSize, SIZE_BITS_COUNT);
 
 		// Compressed size of the data, accounting for the InitVector and AAD data bits, if encryption is to be used
 		int compSize = dataBytes.length + (encrypted ? Crypto.AES_IV_SIZE + Crypto.GCM_AAD_SIZE / Byte.SIZE : 0);
-		byte[] compFileSizeBits = BitByteConv.intToBitArray(compSize, SIZE_BITS_COUNT, false);
+		byte[] compFileSizeBits = BitByteConv.intToBitArray(compSize, SIZE_BITS_COUNT);
 
 		if (!dataFitsInImage(compSize * Byte.SIZE,
-				origImg.getWidth() * origImg.getHeight() * bitsPerChannel * BITS_PER_CHANNEL_BIT_SIZE,
+				origImg.getWidth() * origImg.getHeight() * bitsPerChannel * (origImg.getColorModel().hasAlpha() ? 4 : 3),
 				encrypted))
 			return;
 

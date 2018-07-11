@@ -1,7 +1,7 @@
 package nsteg.img.decoder;
 
-import nsteg.nsteg_utils.BitByteConv;
 import nsteg.img.nStegImg;
+import nsteg.nsteg_utils.BitByteConv;
 
 import java.awt.image.BufferedImage;
 import java.util.ArrayDeque;
@@ -93,6 +93,7 @@ public class ImgDecoder {
 
 		for (int i = 0; i < bytesToRead; i++)
 			extractedBytes[i] = (byte) BitByteConv.bitArrayToInt(readBits(Byte.SIZE), true);
+
 		return extractedBytes;
 	}
 
@@ -118,10 +119,10 @@ public class ImgDecoder {
 	 * @param orig 32-bit argb int representing the colors the values of the 4 color channels
 	 */
 	private void extractDataFromPixel(int orig) {
-		byte[] aBits = BitByteConv.intToBitArray((orig >> 24) & 0xff, Byte.SIZE, false); // Get alpha channel value
-		byte[] rBits = BitByteConv.intToBitArray((orig >> 16) & 0xff, Byte.SIZE, false); // Get red channel value
-		byte[] gBits = BitByteConv.intToBitArray((orig >> 8) & 0xff, Byte.SIZE, false); // Get green channel value
-		byte[] bBits = BitByteConv.intToBitArray(orig & 0xff, Byte.SIZE, false); // Get blue channel value
+		byte[] aBits = BitByteConv.intToBitArray((orig >> 24) & 0xff, Byte.SIZE); // Get alpha channel value
+		byte[] rBits = BitByteConv.intToBitArray((orig >> 16) & 0xff, Byte.SIZE); // Get red channel value
+		byte[] gBits = BitByteConv.intToBitArray((orig >> 8) & 0xff, Byte.SIZE); // Get green channel value
+		byte[] bBits = BitByteConv.intToBitArray(orig & 0xff, Byte.SIZE); // Get blue channel value
 
 		// Write least significant bit(s) from the color channels to the queue of bits to recover the encoded file
 		for (int lsb = 0; lsb < bitsPerChannel; lsb++) {

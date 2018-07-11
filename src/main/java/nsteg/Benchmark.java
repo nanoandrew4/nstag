@@ -1,12 +1,14 @@
 package nsteg;
 
+import nsteg.img.decoder.ImgDecoder;
 import nsteg.img.encoder.ImgEncoder;
 
 import java.awt.image.BufferedImage;
 import java.util.Random;
 
 /**
- * Benchmarks the image encoder, in order to determine what the throughput of it is on the system it is run on.
+ * Benchmarks the image encoder and decoder, in order to determine what the throughput of it is on the system it is run
+ * on.
  */
 public class Benchmark {
 
@@ -16,7 +18,9 @@ public class Benchmark {
 	 * information.
 	 */
 	public static void run() {
-		System.out.println("Running benchmark on RGB image, using ~4MB of random data to encode...\n");
+		System.out.println("Running benchmark on RGB image, using ~4MB of random data to encode.");
+		System.out.println("Results are estimates since data is random, and CPU utilization is always changing.");
+		System.out.println("Running this benchmark multiple times will skew results, since the JVM will be warmed up.\n");
 
 		BufferedImage img = new BufferedImage(5000, 5000, BufferedImage.TYPE_INT_RGB);
 		for (int bpc = 1; bpc < 9; bpc++) {
@@ -35,7 +39,20 @@ public class Benchmark {
 			ie.stopThreads();
 
 			double encodeSpeed = (data.length / (Math.pow(2, 20))) / ((finish - start) / 1000.0);
-			System.out.println("Encoding speed using " + bpc + " bits per channel is: " + String.format("%.2f", encodeSpeed) + " MB/s");
+			System.out.println("Encoding speed using " + bpc + " bits per channel is: " +
+					String.format("%.2f", encodeSpeed) + " MB/s"
+			);
+
+			ImgDecoder id = new ImgDecoder(img);
+			start = System.currentTimeMillis();
+			id.readBytes(data.length);
+			finish = System.currentTimeMillis();
+
+			double decodeSpeed = (data.length / (Math.pow(2, 20))) / ((finish - start) / 1000.0);
+			System.out.println("Decoding speed using " + bpc + " bits per channel is: " +
+					String.format("%.2f", decodeSpeed) + " MB/s"
+			);
+			System.out.println();
 		}
 
 		System.out.println();

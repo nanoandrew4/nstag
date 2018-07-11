@@ -55,7 +55,7 @@ public class ImgEncoder {
 
 		// Encode desired LSBs per channel using only LSB of first (or first and second, depending on number of channels) pixel(s)
 		EncoderThread.setBitsPerChannel(1);
-		encodeBits(BitByteConv.intToBitArray(bitsPerChannel, 4, false));
+		encodeBits(BitByteConv.intToBitArray(bitsPerChannel, 4));
 
 		while (encThreads[0].isActive())
 			sleep(2);
@@ -132,7 +132,7 @@ public class ImgEncoder {
 			byte[] bitsToEncode = new byte[numOfBitsToEncode];
 
 			for (; currByte < bytesToEncode.length && currBitPos < bitsToEncode.length; currByte++) {
-				byte[] bits = BitByteConv.intToBitArray(bytesToEncode[currByte], Byte.SIZE, true);
+				byte[] bits = BitByteConv.intToBitArray(bytesToEncode[currByte], Byte.SIZE);
 				System.arraycopy(bits, 0, bitsToEncode, currBitPos, Byte.SIZE);
 				currBitPos += Byte.SIZE;
 			}

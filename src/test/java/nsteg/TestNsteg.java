@@ -9,6 +9,7 @@ import java.awt.image.BufferedImage;
 import java.util.Random;
 
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 
 public class TestNsteg {
 
@@ -24,7 +25,7 @@ public class TestNsteg {
 				rand.nextBytes(data);
 
 				ImgEncoder ie = new ImgEncoder(img, bpc);
-				ie.encodeBits(BitByteConv.intToBitArray(data.length, 32, false));
+				ie.encodeBits(BitByteConv.intToBitArray(data.length, 32));
 				ie.encodeBytes(data);
 				ie.stopThreads();
 
@@ -39,6 +40,19 @@ public class TestNsteg {
 				System.out.println("Passed bpc " + bpc + " using " + (imgType == BufferedImage.TYPE_4BYTE_ABGR ? "A" : "") + "RGB");
 			}
 			System.out.println();
+		}
+	}
+
+	@Test
+	public void testBitByteConv() {
+		for (int i = Integer.MAX_VALUE - 1000000; i < Integer.MAX_VALUE; i++) {
+			byte[] bits = BitByteConv.intToBitArray(i, 32);
+			assertEquals(i, BitByteConv.bitArrayToInt(bits, false));
+		}
+
+		for (int i = Integer.MIN_VALUE; i < Integer.MIN_VALUE + 1000000; i++) {
+			byte[] bits = BitByteConv.intToBitArray(i, 32);
+			assertEquals(i, BitByteConv.bitArrayToInt(bits, true));
 		}
 	}
 }

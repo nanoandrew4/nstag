@@ -142,10 +142,10 @@ public class EncoderThread extends Thread {
 	private int insertDataToPixel(int orig) {
 		byte[] aBits = null;
 		if (numOfChannels == 4)
-			aBits = BitByteConv.intToBitArray(((orig >> 24) & 0xff), Byte.SIZE, false); // Get original alpha bits
-		byte[] rBits = BitByteConv.intToBitArray(((orig >> 16) & 0xff), Byte.SIZE, false); // Get original red bits
-		byte[] gBits = BitByteConv.intToBitArray(((orig >> 8) & 0xff), Byte.SIZE, false); // Get original green bits
-		byte[] bBits = BitByteConv.intToBitArray(orig & 0xff, Byte.SIZE, false); // Get original blue bits
+			aBits = BitByteConv.intToBitArray(((orig >> 24) & 0xff), Byte.SIZE); // Get original alpha bits
+		byte[] rBits = BitByteConv.intToBitArray(((orig >> 16) & 0xff), Byte.SIZE); // Get original red bits
+		byte[] gBits = BitByteConv.intToBitArray(((orig >> 8) & 0xff), Byte.SIZE); // Get original green bits
+		byte[] bBits = BitByteConv.intToBitArray(orig & 0xff, Byte.SIZE); // Get original blue bits
 
 		// Mod bit values, in order to encode bits from the buffer. Read method doc for more info
 		for (; currLSB < bitsPerChannel && currBit < bitsToWrite.length; ) {
