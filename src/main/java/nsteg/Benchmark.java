@@ -1,7 +1,7 @@
 package nsteg;
 
-import nsteg.img.decoder.ImgDecoder;
-import nsteg.img.encoder.ImgEncoder;
+import nsteg.decoders.img.ImgDecoder;
+import nsteg.encoders.img.ImgEncoder;
 
 import java.awt.image.BufferedImage;
 import java.util.Random;

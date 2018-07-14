@@ -1,6 +1,6 @@
-package nsteg.img.decoder;
+package nsteg.decoders.img;
 
-import nsteg.img.nStegImg;
+import nsteg.decoders.Decoder;
 import nsteg.nsteg_utils.BitByteConv;
 
 import java.awt.image.BufferedImage;
@@ -21,10 +21,8 @@ import java.util.ArrayDeque;
  * channel, values are reset to start encoding at the third pixel, as if no data had been written yet. If the image has
  * four channels (ARGB), only the first pixel is used for encoding, and data encoding starts at the second pixel, which
  * means no space is wasted.
- *
- * @see nStegImg
  */
-public class ImgDecoder {
+public class ImgDecoder extends Decoder {
 	private BufferedImage img; // Image to read (A)RGB data from and to write (A)RGB modified data to
 	private int x = 0, y = 0; // Pixel coords
 	private int width, height; // Img dims

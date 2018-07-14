@@ -1,4 +1,4 @@
-package nsteg.img.encoder;
+package nsteg.encoders.img;
 
 /**
  * Container for ImgEncoder and its various EncoderThread instances to communicate encoding position data.

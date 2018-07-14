@@ -1,6 +1,8 @@
-package nsteg.img.encoder;
+package nsteg.encoders.img;
 
+import nsteg.encoders.Encoder;
 import nsteg.nsteg_utils.BitByteConv;
+import nsteg.nsteg_utils.Crypto;
 
 import java.awt.image.BufferedImage;
 
@@ -15,7 +17,7 @@ import java.awt.image.BufferedImage;
  * four channels (ARGB), only the first pixel is used for encoding, and data encoding starts at the second pixel, which
  * means no space is wasted.
  */
-public class ImgEncoder {
+public class ImgEncoder extends Encoder {
 	private BufferedImage img; // Image to read (A)RGB data from and to write (A)RGB modified data to
 	private int x = 0, y = 0; // Pixel coords
 
@@ -33,8 +35,6 @@ public class ImgEncoder {
 	private final int FOUR_CHAN_BLOCK_SIZE = 107520; // 860160 bits
 
 	private int chunkBitSize;
-
-	private EncoderThread[] encThreads = new EncoderThread[Runtime.getRuntime().availableProcessors() - 1];
 
 	/**
 	 * Initializes an ImgEncoder instance with the given image, determines the number of channels in the image,
@@ -69,6 +69,24 @@ public class ImgEncoder {
 		EncoderThread.setBitsPerChannel(bitsPerChannel);
 	}
 
+	public boolean doesFileFit(int fileSizeInBits, int LSBsToUse, boolean encrypted) {
+		long requiredBits = LEAST_SIG_BITS_TO_USE + (2 * SIZE_BITS_COUNT) + fileSizeInBits;
+		if (encrypted)
+			requiredBits += Crypto.GCM_AAD_SIZE + Crypto.AES_IV_SIZE + Crypto.SALT_SIZE_BITS;
+
+		int maxCapacity = img.getWidth() * img.getHeight() * (img.getColorModel().hasAlpha() ? 4 : 3) * LSBsToUse;
+
+		if (requiredBits > maxCapacity) {
+			System.err.println("Not enough space in image, consider allowing more bits or using a larger image");
+			System.err.println("Required capacity: " + requiredBits);
+			System.err.println("Bits that can be encoded: " + maxCapacity);
+			System.out.println();
+			return false;
+		}
+
+		return true;
+	}
+
 	/**
 	 * Returns the image this Encoder works on. This should be called once all the data has been encoded, and the
 	 * image containing the encoded data is ready to be written to the disk.
@@ -77,13 +95,6 @@ public class ImgEncoder {
 	 */
 	public BufferedImage getImg() {
 		return img;
-	}
-
-	static void sleep(long millis) {
-		try {
-			Thread.sleep(millis);
-		} catch (InterruptedException ignored) {
-		}
 	}
 
 	/**

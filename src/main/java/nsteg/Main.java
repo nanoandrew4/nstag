@@ -1,6 +1,7 @@
 package nsteg;
 
-import nsteg.img.nStegImg;
+import nsteg.decoders.Decoder;
+import nsteg.encoders.Encoder;
 
 import java.util.Scanner;
 
@@ -11,8 +12,8 @@ public class Main {
 			Scanner in = new Scanner(System.in);
 			System.out.println("Welcome to nsteg - A program that hides files inside images");
 			System.out.println("Choose one of the following:");
-			System.out.println("1. Encode a file inside an image");
-			System.out.println("2. Decode a file from an image");
+			System.out.println("1. Encode data");
+			System.out.println("2. Decode data");
 			System.out.println("3. Benchmark encoding speed");
 			System.out.println("0. Exit nsteg");
 			System.out.print("\n>> ");
@@ -26,7 +27,7 @@ public class Main {
 			switch (opt) {
 				case 1:
 					String origImagePath, fileToHide, outImagePath;
-					System.out.print("Path to image to hide data in: ");
+					System.out.print("Path to media file to hide data in: ");
 					origImagePath = in.nextLine();
 					System.out.print("Path to file to be hidden: ");
 					fileToHide = in.nextLine();
@@ -37,15 +38,15 @@ public class Main {
 					do {
 						bitsToUse = in.nextInt();
 					} while (bitsToUse < 1 || bitsToUse > 8);
-					nStegImg.encode(origImagePath, fileToHide, outImagePath, bitsToUse);
+					Encoder.encode(origImagePath, fileToHide, outImagePath, bitsToUse);
 					break;
 				case 2:
 					String encodedImgPath, outFilePath;
-					System.out.print("Path to image to decode data from: ");
+					System.out.print("Path to media file to decode data from: ");
 					encodedImgPath = in.nextLine();
 					System.out.print("Path and file name under which to save decoded data (with appropriate extension): ");
 					outFilePath = in.nextLine();
-					nStegImg.decode(encodedImgPath, outFilePath);
+					Decoder.decode(encodedImgPath, outFilePath);
 					break;
 				case 3:
 					Benchmark.run();

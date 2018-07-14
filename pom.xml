@@ -6,7 +6,7 @@
 
     <groupId>nanoandrew4</groupId>
     <artifactId>nsteg</artifactId>
-    <version>v1.3</version>
+    <version>v2.0</version>
 
     <build>
         <plugins>
@@ -45,11 +45,23 @@
         </plugins>
     </build>
 
+    <repositories>
+        <repository>
+            <id>mp3plugin</id>
+            <url>file://${project.basedir}/lib</url>
+        </repository>
+    </repositories>
+
     <dependencies>
         <dependency>
             <groupId>com.lambdaworks</groupId>
             <artifactId>scrypt</artifactId>
             <version>1.4.0</version>
+        </dependency>
+        <dependency>
+            <groupId>oracle</groupId>
+            <artifactId>mp3plugin</artifactId>
+            <version>1</version>
         </dependency>
         <dependency>
             <groupId>junit</groupId>

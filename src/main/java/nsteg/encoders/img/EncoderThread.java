@@ -1,4 +1,4 @@
-package nsteg.img.encoder;
+package nsteg.encoders.img;
 
 import nsteg.nsteg_utils.BitByteConv;
 
