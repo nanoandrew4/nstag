@@ -10,11 +10,11 @@ public class Main {
 		int opt;
 		while (true) {
 			Scanner in = new Scanner(System.in);
-			System.out.println("Welcome to nsteg - A program that hides files inside images");
+			System.out.println("Welcome to nsteg - A program that hides files inside images or audio files");
 			System.out.println("Choose one of the following:");
 			System.out.println("1. Encode data");
 			System.out.println("2. Decode data");
-			System.out.println("3. Benchmark encoding speed");
+			System.out.println("3. Benchmark encoding/decoding speed");
 			System.out.println("0. Exit nsteg");
 			System.out.print("\n>> ");
 
@@ -31,9 +31,9 @@ public class Main {
 					origImagePath = in.nextLine();
 					System.out.print("Path to file to be hidden: ");
 					fileToHide = in.nextLine();
-					System.out.print("Desired path and filename (with file extension) for output image: ");
+					System.out.print("Desired filename for encoded media file: ");
 					outImagePath = in.nextLine();
-					System.out.print("Number of bits to use in each channel (1-8): ");
+					System.out.print("Number of least significant bits to use (1-8): ");
 					int bitsToUse;
 					do {
 						bitsToUse = in.nextInt();

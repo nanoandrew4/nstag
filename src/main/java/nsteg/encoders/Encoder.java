@@ -2,6 +2,7 @@ package nsteg.encoders;
 
 import nsteg.Spinner;
 import nsteg.encoders.aud.AudioEncoder;
+import nsteg.processors.AudioProcessor;
 import nsteg.processors.ImageProcessor;
 import nsteg.encoders.img.EncoderThread;
 import nsteg.encoders.img.ImgEncoder;
@@ -52,6 +53,7 @@ public abstract class Encoder {
 
 		try {
 			img = ImageIO.read(new URL(file));
+			Spinner.end();
 			return new ImgEncoder(img, LSBsToUse);
 		} catch (IOException ignored) {
 		}
@@ -59,6 +61,7 @@ public abstract class Encoder {
 		try {
 			raw = AudioSystem.getAudioInputStream(new File(file));
 			AudioInputStream decoded = AudioSystem.getAudioInputStream(AudioFormat.Encoding.PCM_SIGNED, raw);
+			Spinner.end();
 			return new AudioEncoder(decoded, LSBsToUse);
 		} catch (UnsupportedAudioFileException | IOException ignored) {
 		}
@@ -121,13 +124,17 @@ public abstract class Encoder {
 		if (encrypted)
 			encoder.encodeBytes(saltBytes);
 
-		Spinner.printWithSpinner("Encoding data to image... ");
+		Spinner.printWithSpinner("Encoding data to media file... ");
 		encoder.encodeBytes(dataBytes);
 		encoder.stopThreads();
 
 		if (encoder instanceof ImgEncoder)
 			ImageProcessor.writeEncodedImageToDisk(((ImgEncoder) encoder).getImg(), outImgName);
 		else if (encoder instanceof AudioEncoder)
-			System.out.println("Write to disk");
+			AudioProcessor.writePCMToWAV(outImgName, ((AudioEncoder) encoder).getEncodedPCM(),
+					((AudioEncoder) encoder).getChannels(), ((AudioEncoder) encoder).getSampleRate()
+			);
+
+		System.out.println("Done!\n");
 	}
 }

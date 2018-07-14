@@ -1,5 +1,7 @@
 package nsteg.processors;
 
+import nsteg.Spinner;
+
 import javax.sound.sampled.*;
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -13,7 +15,6 @@ public class AudioProcessor {
 		byte[] decBytes = new byte[(int) Math.pow(2, 20)];
 		int bytesRead = 0;
 
-		long start = System.currentTimeMillis();
 		try {
 			while (audioFile.read(byteSample) != -1) {
 				System.arraycopy(byteSample, 0, decBytes, bytesRead, bytesPerSample);
@@ -33,17 +34,18 @@ public class AudioProcessor {
 			e.printStackTrace();
 		}
 
-//		System.out.println((System.currentTimeMillis() - start) / 1000.0);
-
 		return decBytes;
 	}
 
-	private static void writePCMToWAV(String outName, byte[] pcm, int channels, int sampleRate) {
+	public static void writePCMToWAV(String outName, byte[] pcm, int channels, int sampleRate) {
 		AudioFormat f = new AudioFormat(sampleRate, 16, channels, true, false);
 		try {
+			Spinner.printWithSpinner("Writing encoded audio file to disk... ");
 			AudioSystem.write(new AudioInputStream(new ByteArrayInputStream(pcm), f, pcm.length),
 					AudioFileFormat.Type.WAVE, new File(outName)
 			);
+			Spinner.spin();
+			System.out.println("\nData encoded successfully into audio file \"" + outName + "\"");
 		} catch (IOException e) {
 			System.err.println("Error writing encoded PCM to WAV file");
 		}

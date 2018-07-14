@@ -12,8 +12,11 @@ public class AudioEncoder extends Encoder {
 
 	private int currLSB = 0, currByte = 0;
 	private int LSBsToUse = 1;
+	private int channels, sampleRate;
 
 	public AudioEncoder(AudioInputStream audFile, int LSBsToUse) {
+		this.channels = audFile.getFormat().getChannels();
+		this.sampleRate = (int) audFile.getFormat().getSampleRate();
 		decBytes = AudioProcessor.loadAudioFile(audFile);
 
 		encodeBits(BitByteConv.intToBitArray(LSBsToUse, LEAST_SIG_BITS_TO_USE));
@@ -22,6 +25,14 @@ public class AudioEncoder extends Encoder {
 
 	public byte[] getEncodedPCM() {
 		return decBytes;
+	}
+
+	public int getChannels() {
+		return channels;
+	}
+
+	public int getSampleRate() {
+		return sampleRate;
 	}
 
 	public void encodeBits(byte[] bits) {
@@ -37,6 +48,9 @@ public class AudioEncoder extends Encoder {
 				currByte += 2;
 			}
 		}
+
+		if (currByte == decBytes.length)
+			System.out.println("No more audio data to use...");
 	}
 
 	public void encodeBytes(byte[] bytesToEncode) {

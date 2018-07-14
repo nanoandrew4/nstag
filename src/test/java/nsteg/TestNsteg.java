@@ -2,8 +2,8 @@ package nsteg;
 
 import nsteg.decoders.Decoder;
 import nsteg.decoders.aud.AudioDecoder;
-import nsteg.encoders.Encoder;
 import nsteg.decoders.img.ImgDecoder;
+import nsteg.encoders.Encoder;
 import nsteg.encoders.aud.AudioEncoder;
 import nsteg.encoders.img.ImgEncoder;
 import nsteg.nsteg_utils.BitByteConv;
@@ -11,24 +11,16 @@ import org.junit.Test;
 
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
-import javax.sound.sampled.AudioSystem;
-import javax.sound.sampled.UnsupportedAudioFileException;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.IOException;
-import java.net.URL;
-import java.util.Arrays;
 import java.util.Random;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
 public class TestNsteg {
-
-	private byte[] genRandData() {
-		byte[] data = new byte[(int) Math.pow(2, 13)];
+	private byte[] genRandData(int bytes) {
+		byte[] data = new byte[bytes];
 		Random rand = new Random();
 		rand.nextBytes(data);
 
@@ -41,7 +33,7 @@ public class TestNsteg {
 			int imgType = (i == 0 ? BufferedImage.TYPE_3BYTE_BGR : BufferedImage.TYPE_4BYTE_ABGR);
 			for (int bpc = 1; bpc < 9; bpc++) {
 				BufferedImage img = new BufferedImage(1000, 1000, imgType);
-				byte[] data = genRandData();
+				byte[] data = genRandData(1 << 13);
 
 				Encoder ie = new ImgEncoder(img, bpc);
 				ie.encodeBits(BitByteConv.intToBitArray(data.length, 32));
@@ -64,33 +56,31 @@ public class TestNsteg {
 
 	@Test
 	public void testAudEncDec() {
+		byte[] audData = genRandData(1 << 18); // 262 kb, enough for all bpc to not run out of space in aud file
+		AudioFormat af = new AudioFormat(44100, 16, 2, true, false);
+
 		for (int bpc = 1; bpc < 9; bpc++) {
-			try {
-				AudioInputStream rawSampleAudio = AudioSystem.getAudioInputStream(new File("src/test/java/nsteg/test.mp3"));
-				AudioInputStream decodedSampleAudio = AudioSystem.getAudioInputStream(AudioFormat.Encoding.PCM_SIGNED, rawSampleAudio);
+			AudioInputStream sampleAudio = new AudioInputStream(new ByteArrayInputStream(audData), af, audData.length);
 
-				byte[] data = genRandData();
-				Encoder ae = new AudioEncoder(decodedSampleAudio, bpc);
-				ae.encodeBits(BitByteConv.intToBitArray(data.length, 32));
-				ae.encodeBytes(data);
-				ae.stopThreads();
+			byte[] data = genRandData(1 << 13);
+			Encoder ae = new AudioEncoder(sampleAudio, bpc);
+			ae.encodeBits(BitByteConv.intToBitArray(data.length, 32));
+			ae.encodeBytes(data);
+			ae.stopThreads();
 
-				AudioFormat f = new AudioFormat(decodedSampleAudio.getFormat().getSampleRate(), 16,
-						decodedSampleAudio.getFormat().getChannels(), true, false
-				);
+			AudioFormat f = new AudioFormat(sampleAudio.getFormat().getSampleRate(), 16,
+					sampleAudio.getFormat().getChannels(), true, false
+			);
 
-				byte[] encData = ((AudioEncoder) ae).getEncodedPCM();
-				Decoder ad = new AudioDecoder(new AudioInputStream(new ByteArrayInputStream(encData), f, encData.length));
+			byte[] encData = ((AudioEncoder) ae).getEncodedPCM();
+			Decoder ad = new AudioDecoder(new AudioInputStream(new ByteArrayInputStream(encData), f, encData.length));
 
-				byte[] fSizeBits = ad.readBits(32);
-				byte[] decData = ad.readBytes(BitByteConv.bitArrayToInt(fSizeBits, false));
+			byte[] fSizeBits = ad.readBits(32);
+			byte[] decData = ad.readBytes(BitByteConv.bitArrayToInt(fSizeBits, false));
 
-				assertArrayEquals(data, decData);
+			assertArrayEquals(data, decData);
 
-				System.out.println("Passed bpc " + bpc + " for audio encoding/decoding");
-			} catch (UnsupportedAudioFileException | IOException e) {
-				e.printStackTrace();
-			}
+			System.out.println("Passed bpc " + bpc + " for audio encoding/decoding");
 		}
 		System.out.println();
 	}

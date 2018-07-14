@@ -32,8 +32,11 @@ public abstract class Decoder {
 		BufferedImage img;
 		AudioInputStream raw;
 
+		Spinner.printWithSpinner("Loading media file containing encoded data... ");
+
 		try {
 			img = ImageIO.read(new URL(encodedMediaFile));
+			Spinner.end();
 			return new ImgDecoder(img);
 		} catch (IOException ignored) {
 		}
@@ -41,6 +44,7 @@ public abstract class Decoder {
 		try {
 			raw = AudioSystem.getAudioInputStream(new File(encodedMediaFile));
 			AudioInputStream decoded = AudioSystem.getAudioInputStream(AudioFormat.Encoding.PCM_SIGNED, raw);
+			Spinner.end();
 			return new AudioDecoder(decoded);
 		} catch (UnsupportedAudioFileException | IOException ignored) {
 		}
