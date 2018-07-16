@@ -31,7 +31,7 @@ public class AudioProcessor {
 			decBytes = new byte[bytesRead];
 			System.arraycopy(tmp, 0, decBytes, 0, bytesRead);
 		} catch (IOException e) {
-			e.printStackTrace();
+			System.err.println("Error reading audio file into memory");
 		}
 
 		return decBytes;
@@ -40,12 +40,14 @@ public class AudioProcessor {
 	public static void writePCMToWAV(String outName, byte[] pcm, int channels, int sampleRate) {
 		AudioFormat f = new AudioFormat(sampleRate, 16, channels, true, false);
 		try {
+			Spinner.end();
+			System.out.println();
 			Spinner.printWithSpinner("Writing encoded audio file to disk... ");
 			AudioSystem.write(new AudioInputStream(new ByteArrayInputStream(pcm), f, pcm.length),
 					AudioFileFormat.Type.WAVE, new File(outName)
 			);
 			Spinner.spin();
-			System.out.println("\nData encoded successfully into audio file \"" + outName + "\"");
+			System.out.println("Data encoded successfully into audio file \"" + outName + "\"");
 		} catch (IOException e) {
 			System.err.println("Error writing encoded PCM to WAV file");
 		}

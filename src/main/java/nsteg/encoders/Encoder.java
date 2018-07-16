@@ -2,27 +2,50 @@ package nsteg.encoders;
 
 import nsteg.Spinner;
 import nsteg.encoders.aud.AudioEncoder;
-import nsteg.processors.AudioProcessor;
-import nsteg.processors.ImageProcessor;
 import nsteg.encoders.img.EncoderThread;
 import nsteg.encoders.img.ImgEncoder;
 import nsteg.nsteg_utils.BitByteConv;
 import nsteg.nsteg_utils.Compressor;
 import nsteg.nsteg_utils.Crypto;
+import nsteg.processors.AudioProcessor;
+import nsteg.processors.ImageProcessor;
 
 import javax.imageio.ImageIO;
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.UnsupportedAudioFileException;
-import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.LinkedList;
 
 public abstract class Encoder {
+	public static LinkedList<String> inImgFormats = new LinkedList<>();
+	public static LinkedList<String> outImgFormats = new LinkedList<>();
+
+	public static LinkedList<String> inAudFormats = new LinkedList<>();
+	public static LinkedList<String> outAudFormats = new LinkedList<>();
+
+	static {
+		String[] inImgSuffixes = ImageIO.getReaderFileSuffixes();
+		inImgFormats.addAll(Arrays.asList(inImgSuffixes));
+		inImgFormats.add("tif");
+		inImgFormats.add("tiff");
+
+		String[] outImgSuffixes = {"png", "bmp", "tif", "tiff"};
+		outImgFormats.addAll(Arrays.asList(outImgSuffixes));
+
+		String[] inAudSuffixes = {"mp3", "wav"};
+		inAudFormats.addAll(Arrays.asList(inAudSuffixes));
+
+		String[] outAudSuffixes = {"wav"};
+		outAudFormats.addAll(Arrays.asList(outAudSuffixes));
+	}
+
 	protected EncoderThread[] encThreads = new EncoderThread[Runtime.getRuntime().availableProcessors()];
 
 	// Number of bits used to encode/decode the size (compressed or uncompressed) of the data
@@ -46,28 +69,33 @@ public abstract class Encoder {
 	public abstract void stopThreads();
 
 	private static Encoder getEncoder(String file, int LSBsToUse) {
-		BufferedImage img;
-		AudioInputStream raw;
-
 		Spinner.printWithSpinner("Loading media file to encode file into... ");
 
-		try {
-			img = ImageIO.read(new URL(file));
-			Spinner.end();
-			return new ImgEncoder(img, LSBsToUse);
-		} catch (IOException ignored) {
+		String[] split = file.split("\\.");
+		String suffix = split[split.length - 1];
+
+		Encoder encoder = null;
+
+		if (inImgFormats.contains(suffix)) {
+			try {
+				encoder = new ImgEncoder(ImageIO.read(new URL(file)), LSBsToUse);
+			} catch (IOException ignored) {
+			}
+		} else if (inAudFormats.contains(suffix)) {
+			try {
+				AudioInputStream decoded = AudioSystem.getAudioInputStream(
+						AudioFormat.Encoding.PCM_SIGNED,
+						AudioSystem.getAudioInputStream(new File(file))
+				);
+				encoder = new AudioEncoder(decoded, LSBsToUse);
+			} catch (UnsupportedAudioFileException | IOException ignored) {
+			}
+		} else {
+			System.err.println("File format not supported.");
 		}
 
-		try {
-			raw = AudioSystem.getAudioInputStream(new File(file));
-			AudioInputStream decoded = AudioSystem.getAudioInputStream(AudioFormat.Encoding.PCM_SIGNED, raw);
-			Spinner.end();
-			return new AudioEncoder(decoded, LSBsToUse);
-		} catch (UnsupportedAudioFileException | IOException ignored) {
-		}
-
-		System.err.println("File format not supported.");
-		return null;
+		Spinner.end();
+		return encoder;
 	}
 
 	/**
@@ -75,18 +103,19 @@ public abstract class Encoder {
 	 * the data. Optionally encrypts the data in the file using the AES-128 cipher and a hashed version of the key
 	 * provided, which is hashed with Scrypt, in order to stave off brute-force attacks against the key.
 	 *
-	 * @param origImgPath    Path and name to image into which to encode the data
-	 * @param fileToEncode   File to be encoded into the image
-	 * @param outImgName     Path and name of the desired output image (copy of the original + file data)
-	 * @param bitsPerChannel Number of least significant bits to use in each color channel. Using more bits will result
-	 *                       in a greater visual deviation from the original. Range is 1-8
+	 * @param origMediaPath Path and name to image into which to encode the data
+	 * @param fileToEncode  File to be encoded into the image
+	 * @param outMediaName  Path and name of the desired output image (copy of the original + file data)
+	 * @param LSBsToUse     Number of least significant bits to use in each color channel. Using more bits will result
+	 *                      in a greater visual deviation from the original. Range is 1-8
 	 */
-	public static void encode(String origImgPath, String fileToEncode, String outImgName, int bitsPerChannel) {
+	public static void encode(String origMediaPath, String fileToEncode, String outMediaName, int LSBsToUse) {
 		byte[] dataBytes;
 		try {
 			Spinner.printWithSpinner("Loading file to encode... ");
 			dataBytes = Files.readAllBytes(Paths.get(fileToEncode));
 		} catch (IOException e) {
+			System.err.println("Error loading file to be hidden");
 			return;
 		}
 
@@ -102,11 +131,11 @@ public abstract class Encoder {
 		int compSize = dataBytes.length + (encrypted ? Crypto.AES_IV_SIZE + Crypto.GCM_AAD_SIZE / Byte.SIZE : 0);
 		byte[] compFileSizeBits = BitByteConv.intToBitArray(compSize, SIZE_BITS_COUNT);
 
-		Encoder encoder = getEncoder(origImgPath, bitsPerChannel);
+		Encoder encoder = getEncoder(origMediaPath, LSBsToUse);
 		if (encoder == null)
 			return;
 
-		if (!encoder.doesFileFit(dataBytes.length * Byte.SIZE, bitsPerChannel, encrypted))
+		if (!encoder.doesFileFit(dataBytes.length * Byte.SIZE, LSBsToUse, encrypted))
 			return;
 
 		byte[] saltBytes = null;
@@ -129,9 +158,9 @@ public abstract class Encoder {
 		encoder.stopThreads();
 
 		if (encoder instanceof ImgEncoder)
-			ImageProcessor.writeEncodedImageToDisk(((ImgEncoder) encoder).getImg(), outImgName);
+			ImageProcessor.writeEncodedImageToDisk(((ImgEncoder) encoder).getImg(), outMediaName);
 		else if (encoder instanceof AudioEncoder)
-			AudioProcessor.writePCMToWAV(outImgName, ((AudioEncoder) encoder).getEncodedPCM(),
+			AudioProcessor.writePCMToWAV(outMediaName, ((AudioEncoder) encoder).getEncodedPCM(),
 					((AudioEncoder) encoder).getChannels(), ((AudioEncoder) encoder).getSampleRate()
 			);
 

@@ -34,23 +34,26 @@ public abstract class Decoder {
 
 		Spinner.printWithSpinner("Loading media file containing encoded data... ");
 
+		Decoder decoder = null;
+
 		try {
 			img = ImageIO.read(new URL(encodedMediaFile));
-			Spinner.end();
-			return new ImgDecoder(img);
+			decoder = new ImgDecoder(img);
 		} catch (IOException ignored) {
 		}
 
 		try {
 			raw = AudioSystem.getAudioInputStream(new File(encodedMediaFile));
 			AudioInputStream decoded = AudioSystem.getAudioInputStream(AudioFormat.Encoding.PCM_SIGNED, raw);
-			Spinner.end();
-			return new AudioDecoder(decoded);
+			decoder = new AudioDecoder(decoded);
 		} catch (UnsupportedAudioFileException | IOException ignored) {
 		}
 
-		System.err.println("File format not supported.");
-		return null;
+		Spinner.end();
+
+		if (decoder == null) // Should never happen
+			System.err.println("File format not supported.");
+		return decoder;
 	}
 
 	/**
