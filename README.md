@@ -16,9 +16,9 @@ When using audio encoding, the number of bits per channel are the number of leas
 
 ## How it works
 
-Image encoding/decoding: [https://github.com/nanoandrew4/nsteg/blob/master/ENC_IMG.md]
+Image encoding/decoding: [https://github.com/nanoandrew4/nsteg/blob/master/IMG_ENC.md]
 
-Audio encoding/decoding: [https://github.com/nanoandrew4/nsteg/blob/master/ENC_AUD.md]
+Audio encoding/decoding: [https://github.com/nanoandrew4/nsteg/blob/master/AUD_ENC.md]
 
 #### Encoding format
 
