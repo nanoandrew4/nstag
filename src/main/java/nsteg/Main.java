@@ -29,7 +29,7 @@ public class Main {
 				opt = in.nextInt();
 			} while (opt < 0 || opt > 3);
 
-			in.nextLine();
+			in.nextLine(); // Catch any excess input
 
 			switch (opt) {
 				case 1:
@@ -58,12 +58,12 @@ public class Main {
 		origImagePath = getMediaInputFile();
 
 		System.out.println("-------------------------------------------------------------------------------------------");
-		System.out.println("Enter the filename of the file that is to be hidden.");
+		System.out.println("Enter the name of the file that is to be hidden.");
 		System.out.print(">> ");
 		fileToHide = getFileToHide();
 
 		System.out.println("-------------------------------------------------------------------------------------------");
-		System.out.println("Desired filename for output media file, containing the hidden file, with appropriate file extension");
+		System.out.println("Desired name for output media file, containing the hidden file, with the appropriate file extension.");
 		if (inFileType == FileType.IMAGE)
 			System.out.println("Supported image output types: " + Encoder.outImgFormats.toString());
 		else if (inFileType == FileType.AUDIO)
@@ -106,6 +106,7 @@ public class Main {
 		String file = null;
 		String fileExt;
 
+		// Check that the file exists and has a file extension that can be opened
 		do {
 			if (file != null) {
 				System.err.println("Input file invalid, please choose a supported file.");
@@ -130,6 +131,7 @@ public class Main {
 		String file = null;
 		String fileExt;
 
+		// Check that the file exists and the file extension is one that belongs to a lossless codec
 		do {
 			if (file != null) {
 				System.err.println("Input file invalid, please choose a supported file type.");
@@ -164,6 +166,7 @@ public class Main {
 		String file = null;
 		String fileExt;
 
+		// Prevent user from choosing an image as an encoding medium, and trying to make the output an audio file, or viceversa
 		do {
 			if (file != null) {
 				System.err.println("Output file is invalid, please choose a supported file type.");

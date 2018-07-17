@@ -1,5 +1,7 @@
 package nsteg.nsteg_utils;
 
+import javax.validation.constraints.NotNull;
+
 /**
  * Contains methods for transforming integers to bit arrays, and from bit arrays to integers.
  */
@@ -39,7 +41,7 @@ public abstract class BitByteConv {
 	 * @param signed True for interpreting as a signed number, false to interpret as an unsigned number
 	 * @return Integer representation of the array of bits
 	 */
-	public static int bitArrayToInt(byte[] bits, boolean signed) {
+	public static int bitArrayToInt(@NotNull byte[] bits, boolean signed) {
 		boolean neg = signed && bits[0] == 1;
 		int b = neg ? -(1 << bits.length - 1) : 0;
 		for (int i = (neg ? 1 : 0); i < bits.length; i++)

@@ -3,17 +3,18 @@ package nsteg.decoders.img;
 import nsteg.decoders.Decoder;
 import nsteg.nsteg_utils.BitByteConv;
 
+import javax.validation.constraints.NotNull;
 import java.awt.image.BufferedImage;
 import java.util.ArrayDeque;
 
 /**
  * This class serves to decode data from an image that was previously encoded using the ImgEncoder class. It reads
  * from the least significant bits from each channel, in each pixel, in the image. The number of LSBs is retrieved from
- * the beginning of the image, where the number is encoded using only 1 LSB. See nStegImg for the specification of how
+ * the beginning of the image, where the number is encoded using only 1 LSB. See ImgEncoder for the specification of how
  * the data is encoded.
  * <p><br>
  * The data is decoded sequentially, meaning that it must be decoded in the same order it was encoded, since that is
- * the way it was initially encoded by ImgEncoder.
+ * the way it was initially encoded by the Encoder class.
  * <p><br>
  * A nibble is required to store the number of LSBs in each channel that will be used for encoding, and subsequently,
  * decoding. In the event the image being worked on has three channels (RGB), the first two pixels are reserved for
@@ -21,6 +22,8 @@ import java.util.ArrayDeque;
  * channel, values are reset to start encoding at the third pixel, as if no data had been written yet. If the image has
  * four channels (ARGB), only the first pixel is used for encoding, and data encoding starts at the second pixel, which
  * means no space is wasted.
+ *
+ * @see nsteg.encoders.Encoder
  */
 public class ImgDecoder extends Decoder {
 	private BufferedImage img; // Image to read (A)RGB data from and to write (A)RGB modified data to
@@ -39,7 +42,7 @@ public class ImgDecoder extends Decoder {
 	 *
 	 * @param encImg Image with data to be decoded
 	 */
-	public ImgDecoder(BufferedImage encImg) {
+	public ImgDecoder(@NotNull BufferedImage encImg) {
 		img = encImg;
 		numOfChannels = img.getColorModel().hasAlpha() ? 4 : 3;
 		width = img.getWidth();

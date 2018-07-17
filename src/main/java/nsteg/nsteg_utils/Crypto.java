@@ -6,6 +6,7 @@ import nsteg.Spinner;
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import javax.validation.constraints.NotNull;
 import java.nio.ByteBuffer;
 import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
@@ -35,7 +36,7 @@ public class Crypto {
 	 * @param compSizeBits   Array containing the bit representation of the compressed size of the array
 	 * @return 16 byte array to be used as AAD
 	 */
-	public static byte[] genAAD(byte[] uncompSizeBits, byte[] compSizeBits) {
+	public static byte[] genAAD(@NotNull byte[] uncompSizeBits, @NotNull byte[] compSizeBits) {
 		byte[] header = new byte[GCM_AAD_SIZE / Byte.SIZE];
 		System.arraycopy(compSizeBits, compSizeBits.length - 8, header, 0, 8);
 		System.arraycopy(uncompSizeBits, uncompSizeBits.length - 8, header, 8, 8);
@@ -50,10 +51,10 @@ public class Crypto {
 	 * encrypted data. The salt used to derive the key is returned alongside the encrypted data.
 	 *
 	 * @param bytesToEncrypt Byte array to encrypt
-	 * @param aad            Associated data array (16 bytes) to detect data tampering with
+	 * @param aad            Associated data array (16 bytes) to prevent data tampering
 	 * @return Two dimensional byte array of size two, containing the salt bytes and the encrypted bytes, respectively
 	 */
-	public static byte[][] encrypt(byte[] bytesToEncrypt, byte[] aad) {
+	public static byte[][] encrypt(@NotNull byte[] bytesToEncrypt, @NotNull byte[] aad) {
 		byte[][] saltAndCiphertext = new byte[2][];
 		saltAndCiphertext[1] = bytesToEncrypt;
 
@@ -72,11 +73,11 @@ public class Crypto {
 			byte[] pass = in.nextLine().getBytes();
 			Spinner.printWithSpinner("Encrypting data... ");
 			byte[] key = SCrypt.scrypt(pass, saltAndCiphertext[0], (int) Math.pow(2, 18), 8, 8, keyLen);
-			Arrays.fill(pass, (byte) 0);
+			Arrays.fill(pass, (byte) 0); // Wipe from memory
 
 			cipher = Cipher.getInstance("AES/GCM/NoPadding");
 			cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"), new GCMParameterSpec(GCM_AAD_SIZE, iv));
-			Arrays.fill(key, (byte) 0);
+			Arrays.fill(key, (byte) 0); // Wipe from memory
 
 			cipher.updateAAD(aad); // Add associated data, to prevent tampering with encrypted data
 			encData = cipher.doFinal(bytesToEncrypt); // Encrypt
@@ -96,16 +97,16 @@ public class Crypto {
 	}
 
 	/**
-	 * Decrypts an array of bytes previously encrypted by this program, obtained from extracting the bits from the least
-	 * significant bit(s) of an image. Decryption is attempted by deriving the key used to encrypt the data using scrypt,
-	 * and the salt that was encoded alongside the encrypted data.
+	 * Decrypts an array of bytes previously encrypted by this programs encrypt() method. Decryption is attempted by
+	 * deriving the key used to encrypt the data using scrypt, and the salt that was encoded alongside the encrypted
+	 * data.
 	 *
 	 * @param bytesToDecrypt Array of encrypted bytes to be decrypted
-	 * @param aad            Associated data used to verify the encrypted data was not tampered with
 	 * @param salt           Salt used to hash the password
+	 * @param aad            Associated data used to verify the encrypted data was not tampered with
 	 * @return Decrypted array of bytes
 	 */
-	public static byte[] decrypt(byte[] bytesToDecrypt, byte[] salt, byte[] aad) {
+	public static byte[] decrypt(@NotNull byte[] bytesToDecrypt, @NotNull byte[] salt, @NotNull byte[] aad) {
 		ByteBuffer byteBuffer = ByteBuffer.wrap(bytesToDecrypt);
 		byte[] iv = new byte[AES_IV_SIZE];
 		byteBuffer.get(iv);
@@ -123,10 +124,10 @@ public class Crypto {
 
 			Spinner.printWithSpinner("Decrypting data... ");
 			byte[] key = SCrypt.scrypt(pass, salt, (int) Math.pow(2, 18), 8, 8, keyLen);
-			Arrays.fill(pass, (byte) 0);
+			Arrays.fill(pass, (byte) 0); // Wipe from memory
 
 			cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, "AES"), new GCMParameterSpec(GCM_AAD_SIZE, iv));
-			Arrays.fill(key, (byte) 0);
+			Arrays.fill(key, (byte) 0); // Wipe from memory
 
 			cipher.updateAAD(aad); // Verify data was not tampered with
 			unencData = cipher.doFinal(cipherText); // Decrypt

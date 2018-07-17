@@ -2,6 +2,7 @@ package nsteg.encoders.img;
 
 import nsteg.nsteg_utils.BitByteConv;
 
+import javax.validation.constraints.NotNull;
 import java.awt.image.BufferedImage;
 
 /**
@@ -24,7 +25,7 @@ public class EncoderThread extends Thread {
 	private static int bitsPerChannel, numOfChannels;
 	private int sx, sy, currLSB, nextChanToWrite, currBit;
 
-	EncoderThread(BufferedImage img, int numOfChannels) {
+	EncoderThread(@NotNull BufferedImage img, int numOfChannels) {
 		this.setDaemon(true);
 
 		this.img = img;
@@ -62,6 +63,7 @@ public class EncoderThread extends Thread {
 					for (int x = sx; x < width && currBit < bitsToWrite.length; ) {
 						img.setRGB(x, y, insertDataToPixel(img.getRGB(x, y)));
 
+						// If all data has been read from the pixel, move to next one
 						if ((currLSB %= bitsPerChannel) == 0 && nextChanToWrite == 0)
 							x++;
 					}
@@ -86,7 +88,7 @@ public class EncoderThread extends Thread {
 	 * @return EndState instance containing ending positions of the starting values passed, so that jobs can quickly
 	 * be submitted to other threads, without having to wait for this one to finish
 	 */
-	EndState submitJob(byte[] bitsToWrite, int sx, int sy, int sLSB, int nextChanToWrite) {
+	EndState submitJob(@NotNull byte[] bitsToWrite, int sx, int sy, int sLSB, int nextChanToWrite) {
 		if (active) {
 			System.err.println("Thread was busy while attempting to submit job!");
 			return null;
@@ -177,7 +179,6 @@ public class EncoderThread extends Thread {
 		}
 
 		// Return 32-bit int representing the color of the pixel, with the encoded bits from the buffer
-
 		if (numOfChannels == 3)
 			return (BitByteConv.bitArrayToInt(rBits, false) << 16) |
 					(BitByteConv.bitArrayToInt(gBits, false) << 8) | BitByteConv.bitArrayToInt(bBits, false);

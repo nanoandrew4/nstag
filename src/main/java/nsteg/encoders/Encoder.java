@@ -15,6 +15,7 @@ import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.UnsupportedAudioFileException;
+import javax.validation.constraints.NotNull;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
@@ -23,13 +24,38 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.LinkedList;
 
+/**
+ * Abstract class defining methods that any encoder should have present, in order to make the design a bit more flexible.
+ * Also carries out the encoding process, when Main requests it, through the encode() method.
+ * <p><br>
+ * The encoding order is as follows:
+ * [# of least significant bits used (4 bits)] - [Compressed file size (32 bits)] - [Uncompressed file size (32 bits)] -
+ * [Hash salt (if encryption was used) (64 bits)] - [File (Variable size)]
+ */
 public abstract class Encoder {
+	/**
+	 * Contains the formats that can be read by ImageIO. Any other image formats are likely not supported natively.
+	 */
 	public static LinkedList<String> inImgFormats = new LinkedList<>();
+	/**
+	 * Contains the formats that can be written by ImageIO, and that are lossless. Any other image formats is likely
+	 * not supported natively or is lossy, and therefore no good for holding data.
+	 */
 	public static LinkedList<String> outImgFormats = new LinkedList<>();
 
+	/**
+	 * Holds the formats that can be read by AudioSystem. Any other audio format is not supported natively.
+	 */
 	public static LinkedList<String> inAudFormats = new LinkedList<>();
+	/**
+	 * Holds the formats that can be written by AudioSystem, and that are lossless. Any other audio format is either not
+	 * supported natively or is lossy, and therefore no good for holding data.
+	 */
 	public static LinkedList<String> outAudFormats = new LinkedList<>();
 
+	/*
+	 * Specifies valid image and audio formats. Can be modified if other lossless codecs are implemented.
+	 */
 	static {
 		String[] inImgSuffixes = ImageIO.getReaderFileSuffixes();
 		inImgFormats.addAll(Arrays.asList(inImgSuffixes));
@@ -46,12 +72,21 @@ public abstract class Encoder {
 		outAudFormats.addAll(Arrays.asList(outAudSuffixes));
 	}
 
+	/**
+	 * Threads used to carry out encoding/decoding tasks. Only as many threads as there are physical threads on the
+	 * processor.
+	 */
 	protected EncoderThread[] encThreads = new EncoderThread[Runtime.getRuntime().availableProcessors()];
 
-	// Number of bits used to encode/decode the size (compressed or uncompressed) of the data
+	/**
+	 * Number of bits used to hold the compressed/uncompressed size of the file being encoded.
+	 */
 	public final static int SIZE_BITS_COUNT = 4 * Byte.SIZE;
 
-	public final static int LEAST_SIG_BITS_TO_USE = 4;
+	/**
+	 * Number of bits used to hold the number of least significant bits used during the encoding process.
+	 */
+	public final static int LSB_BITS_COUNT = 4;
 
 	public static void sleep(long millis) {
 		try {
@@ -60,15 +95,34 @@ public abstract class Encoder {
 		}
 	}
 
+	// Impl specific
 	public abstract void encodeBits(byte[] bits);
 
+	// Impl specific
 	public abstract void encodeBytes(byte[] bytes);
 
+	/**
+	 * Determines if the file to be hidden actually fits in the media file chosen by the user. If it does not fit,
+	 * errors are printed and the encoding process will stop.
+	 *
+	 * @param fileSizeInBits Size of the file to be hidden, in bits
+	 * @param LSBsToUse      Number of least significant bits to use during the encoding process
+	 * @param encrypted      True if encryption is to be used, false otherwise
+	 * @return True if the file will fit inside the media file, false otherwise
+	 */
 	public abstract boolean doesFileFit(int fileSizeInBits, int LSBsToUse, boolean encrypted);
 
+	// Impl specific
 	public abstract void stopThreads();
 
-	private static Encoder getEncoder(String file, int LSBsToUse) {
+	/**
+	 * Initializes and returns the encoder implementation capable of handling the media file entered by the user.
+	 *
+	 * @param file      Name of media file to be used for encoding
+	 * @param LSBsToUse Number of least significant bits to use during the encoding process
+	 * @return Initialized encoder, ready to start encoding data
+	 */
+	private static Encoder getEncoder(@NotNull String file, int LSBsToUse) {
 		Spinner.printWithSpinner("Loading media file to encode file into... ");
 
 		String[] split = file.split("\\.");
@@ -78,7 +132,7 @@ public abstract class Encoder {
 
 		if (inImgFormats.contains(suffix)) {
 			try {
-				encoder = new ImgEncoder(ImageIO.read(new URL(file)), LSBsToUse);
+				encoder = new ImgEncoder(ImageIO.read(new File(file)), LSBsToUse);
 			} catch (IOException ignored) {
 			}
 		} else if (inAudFormats.contains(suffix)) {
@@ -90,18 +144,20 @@ public abstract class Encoder {
 				encoder = new AudioEncoder(decoded, LSBsToUse);
 			} catch (UnsupportedAudioFileException | IOException ignored) {
 			}
-		} else {
+		} else
 			System.err.println("File format not supported.");
-		}
 
 		Spinner.end();
 		return encoder;
 	}
 
 	/**
-	 * Encodes a file into an image, using the least significant bit(s) in the (A)RGB channels of each pixel to store
-	 * the data. Optionally encrypts the data in the file using the AES-128 cipher and a hashed version of the key
-	 * provided, which is hashed with Scrypt, in order to stave off brute-force attacks against the key.
+	 * Encodes a file into a media file, by inserting the bits of the file into the least significant bits of the media
+	 * file. For images, the least significant bits used are those from the RGB or ARGB channels, in each pixel. For
+	 * audio files, each byte belonging to the right channel is modified, and the left channel is left untouched.
+	 * The file can be optionally encrypted through the use of the AES cipher, using a 256 bit key derived by scrypt,
+	 * which is generated by a user chosen password, and a random salt. The file is always compressed before any
+	 * encryption happens.
 	 *
 	 * @param origMediaPath Path and name to image into which to encode the data
 	 * @param fileToEncode  File to be encoded into the image
@@ -109,7 +165,7 @@ public abstract class Encoder {
 	 * @param LSBsToUse     Number of least significant bits to use in each color channel. Using more bits will result
 	 *                      in a greater visual deviation from the original. Range is 1-8
 	 */
-	public static void encode(String origMediaPath, String fileToEncode, String outMediaName, int LSBsToUse) {
+	public static void encode(@NotNull String origMediaPath, @NotNull String fileToEncode, @NotNull String outMediaName, int LSBsToUse) {
 		byte[] dataBytes;
 		try {
 			Spinner.printWithSpinner("Loading file to encode... ");

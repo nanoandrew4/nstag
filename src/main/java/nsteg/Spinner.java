@@ -1,5 +1,7 @@
 package nsteg;
 
+import javax.validation.constraints.NotNull;
+
 /**
  * Simple spinning icon made out of characters. Used while program is running long computations, so the user
  * feels like the program is running something vs just being stuck. Pretty meaningless, but hey, looks good!
@@ -51,7 +53,7 @@ public class Spinner extends Thread {
 	 *
 	 * @param str String to be printed before starting the spinner
 	 */
-	public static void printWithSpinner(String str) {
+	public static void printWithSpinner(@NotNull String str) {
 		if (spinning)
 			end();
 		System.out.print(str);

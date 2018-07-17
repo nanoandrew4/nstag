@@ -12,15 +12,14 @@ import java.io.ByteArrayInputStream;
 import java.util.Random;
 
 /**
- * Benchmarks the image encoder and decoder, in order to determine what the throughput of it is on the system it is run
- * on.
+ * Benchmarks the image and audio encoders/decoders. The benchmarks display the encoding/decoding speeds in MiB/s.
  */
 public class Benchmark {
 
 	/**
-	 * Runs the benchmark, and outputs the results. The benchmark consists of encoding ~4 MB of data into an image,
-	 * using all possible bitsPerChannel values (1-8). Each bitsPerChannel iteration outputs its own throughput
-	 * information.
+	 * Runs the benchmarks, and outputs the results. The benchmarks consists of encoding ~4 MiB of data into an image
+	 * and audio file, using all possible bitsPerChannel values (1-8). Each bitsPerChannel iteration outputs its own
+	 * throughput information.
 	 */
 	public static void run() {
 		runImgBenchmark();
@@ -30,7 +29,7 @@ public class Benchmark {
 	private static void printEncDecSpeed(long start, long finish, int dataLen, int bpc, boolean encode) {
 		double speed = (dataLen / (1 << 20)) / ((finish - start) / 1000.0);
 		System.out.println((encode ? "Encoding" : "Decoding") + " speed using " + bpc + " bits per channel is: " +
-				String.format("%.2f", speed) + " MB/s"
+				String.format("%.2f", speed) + " MiB/s"
 		);
 	}
 
@@ -38,7 +37,7 @@ public class Benchmark {
 		System.out.println("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
 		System.out.println("Image encoding/decoding benchmark");
 		System.out.println("-------------------------------------------------------------------------------------------");
-		System.out.println("Running benchmark on RGB image, using ~4MB of random data to encode.");
+		System.out.println("Running benchmark on RGB image, using ~4MiB of random data to encode.");
 		System.out.println("Results are estimates since data is random, and CPU utilization is always changing.");
 		System.out.println("Running this benchmark multiple times will skew results, since the JVM will be warmed up.");
 		System.out.println("-------------------------------------------------------------------------------------------");
@@ -48,9 +47,10 @@ public class Benchmark {
 			ImgEncoder ie = new ImgEncoder(img, bpc);
 
 			byte[] dataSizeBits = new byte[32];
+			ie.encodeBits(dataSizeBits); // Size bits are encoded to simulate a real encoding process
 			ie.encodeBits(dataSizeBits);
 
-			byte[] dataToEncode = new byte[1 << 22]; // ~4 MB
+			byte[] dataToEncode = new byte[1 << 22]; // 4 MiB of random data
 			Random rand = new Random();
 			rand.nextBytes(dataToEncode);
 
@@ -62,6 +62,7 @@ public class Benchmark {
 			printEncDecSpeed(start, finish, dataToEncode.length, bpc, true);
 
 			ImgDecoder id = new ImgDecoder(img);
+			id.readBits(dataSizeBits.length);
 			id.readBits(dataSizeBits.length);
 
 			start = System.currentTimeMillis();
@@ -77,11 +78,12 @@ public class Benchmark {
 		System.out.println("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
 		System.out.println("Audio encoding/decoding benchmark");
 		System.out.println("-------------------------------------------------------------------------------------------");
+		System.out.println("Running benchmark on random noise, using ~4MiB of random data to encode.");
 		System.out.println("Although this benchmark may seem slower than the image benchmark, it is solely due");
 		System.out.println("to the time it takes to generate a random noise audio file and read it into memory.");
 		System.out.println("-------------------------------------------------------------------------------------------");
 
-		byte[] audData = new byte[1 << 28];
+		byte[] audData = new byte[1 << 27]; // Use 134 MB of random noise, in order to fit all bpc iterations
 		Random rand = new Random();
 		rand.nextBytes(audData);
 
@@ -93,9 +95,10 @@ public class Benchmark {
 			AudioEncoder ae = new AudioEncoder(audioStream, bpc);
 
 			byte[] dataSizeBits = new byte[32];
+			ae.encodeBits(dataSizeBits); // Size bits are encoded to simulate a real encoding process
 			ae.encodeBits(dataSizeBits);
 
-			byte[] dataToEncode = new byte[1 << 22];
+			byte[] dataToEncode = new byte[1 << 22]; // 4 MiB of random data
 			rand.nextBytes(dataSizeBits);
 
 			long start = System.currentTimeMillis();
@@ -109,15 +112,18 @@ public class Benchmark {
 
 			AudioDecoder ad = new AudioDecoder(new AudioInputStream(new ByteArrayInputStream(encData), af, encData.length));
 			ad.readBits(dataSizeBits.length);
+			ad.readBits(dataSizeBits.length);
 
 			start = System.currentTimeMillis();
 			ad.readBytes(dataToEncode.length);
 			finish = System.currentTimeMillis();
 
 			printEncDecSpeed(start, finish, dataToEncode.length, bpc, false);
-			System.out.println();
+
+			if (bpc != 8)
+				System.out.println();
 		}
 
-		System.out.println("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
+		System.out.println("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 	}
 }

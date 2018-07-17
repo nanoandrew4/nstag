@@ -2,6 +2,7 @@ package nsteg.nsteg_utils;
 
 import nsteg.Spinner;
 
+import javax.validation.constraints.NotNull;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -19,7 +20,7 @@ public class Compressor {
 	 * @param bytes Array of bytes to be compressed
 	 * @return Original array or compressed array, whichever is smaller
 	 */
-	public static byte[] compress(byte[] bytes) {
+	public static byte[] compress(@NotNull byte[] bytes) {
 		Spinner.printWithSpinner("Compressing data... ");
 
 		ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -48,7 +49,7 @@ public class Compressor {
 	 *                   bytes to read
 	 * @return Array containing uncompressed data
 	 */
-	public static byte[] decompress(byte[] compBytes, int uncompSize) {
+	public static byte[] decompress(@NotNull byte[] compBytes, int uncompSize) {
 		if (compBytes.length >= uncompSize)
 			return compBytes;
 

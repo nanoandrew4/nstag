@@ -4,6 +4,7 @@ import nsteg.encoders.Encoder;
 import nsteg.nsteg_utils.BitByteConv;
 import nsteg.nsteg_utils.Crypto;
 
+import javax.validation.constraints.NotNull;
 import java.awt.image.BufferedImage;
 
 /**
@@ -43,7 +44,7 @@ public class ImgEncoder extends Encoder {
 	 * @param origImg        Image to encode data into
 	 * @param bitsPerChannel Number of least significant bits to use in each channel
 	 */
-	public ImgEncoder(BufferedImage origImg, int bitsPerChannel) {
+	public ImgEncoder(@NotNull BufferedImage origImg, int bitsPerChannel) {
 		img = origImg;
 		int numOfChannels = img.getColorModel().hasAlpha() ? 4 : 3;
 		chunkBitSize = (numOfChannels == 3 ? THREE_CHAN_BLOCK_SIZE : FOUR_CHAN_BLOCK_SIZE) * Byte.SIZE;
@@ -69,8 +70,9 @@ public class ImgEncoder extends Encoder {
 		EncoderThread.setBitsPerChannel(bitsPerChannel);
 	}
 
+	// See abstract method declaration
 	public boolean doesFileFit(int fileSizeInBits, int LSBsToUse, boolean encrypted) {
-		long requiredBits = LEAST_SIG_BITS_TO_USE + (2 * SIZE_BITS_COUNT) + fileSizeInBits;
+		long requiredBits = LSB_BITS_COUNT + (2 * SIZE_BITS_COUNT) + fileSizeInBits;
 		if (encrypted)
 			requiredBits += Crypto.GCM_AAD_SIZE + Crypto.AES_IV_SIZE + Crypto.SALT_SIZE_BITS;
 
@@ -107,7 +109,7 @@ public class ImgEncoder extends Encoder {
 	 * @param bitsToEncode Array containing only bits, that are to be encoded in the image
 	 */
 
-	public void encodeBits(byte[] bitsToEncode) {
+	public void encodeBits(@NotNull byte[] bitsToEncode) {
 		for (int i = 0; i < encThreads.length; i %= encThreads.length) {
 			if (!encThreads[i].isActive()) {
 				EndState endState = encThreads[i].submitJob(bitsToEncode, x, y, currLSB, nextChanToWrite);
@@ -128,7 +130,7 @@ public class ImgEncoder extends Encoder {
 	 *
 	 * @param bytesToEncode Array of bytes to be encoded in the image
 	 */
-	public void encodeBytes(byte[] bytesToEncode) {
+	public void encodeBytes(@NotNull byte[] bytesToEncode) {
 		int currByte = 0;
 		int chunkByteSize = chunkBitSize / Byte.SIZE;
 		while (currByte < bytesToEncode.length) {
