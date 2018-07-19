@@ -65,10 +65,10 @@ public abstract class Encoder {
 		String[] outImgSuffixes = {"png", "bmp", "tif", "tiff"};
 		outImgFormats.addAll(Arrays.asList(outImgSuffixes));
 
-		String[] inAudSuffixes = {"mp3", "wav"};
+		String[] inAudSuffixes = {"mp3", "wav", "flac"};
 		inAudFormats.addAll(Arrays.asList(inAudSuffixes));
 
-		String[] outAudSuffixes = {"wav"};
+		String[] outAudSuffixes = {"wav", "flac"};
 		outAudFormats.addAll(Arrays.asList(outAudSuffixes));
 	}
 
@@ -216,9 +216,7 @@ public abstract class Encoder {
 		if (encoder instanceof ImgEncoder)
 			ImageProcessor.writeEncodedImageToDisk(((ImgEncoder) encoder).getImg(), outMediaName);
 		else if (encoder instanceof AudioEncoder)
-			AudioProcessor.writePCMToWAV(outMediaName, ((AudioEncoder) encoder).getEncodedPCM(),
-					((AudioEncoder) encoder).getChannels(), ((AudioEncoder) encoder).getSampleRate()
-			);
+			AudioProcessor.writePCMToDisk(outMediaName, (AudioEncoder) encoder);
 
 		System.out.println("Done!\n");
 	}

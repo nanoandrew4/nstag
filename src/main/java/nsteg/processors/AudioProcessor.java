@@ -1,6 +1,8 @@
 package nsteg.processors;
 
+import net.sourceforge.javaflacencoder.*;
 import nsteg.Spinner;
+import nsteg.encoders.aud.AudioEncoder;
 
 import javax.sound.sampled.AudioFileFormat;
 import javax.sound.sampled.AudioFormat;
@@ -51,15 +53,25 @@ public class AudioProcessor {
 		return decBytes;
 	}
 
+	public static void writePCMToDisk(@NotNull String outName, @NotNull AudioEncoder audioEncoder) {
+		String[] fileNameSplit = outName.split("\\.");
+		String fileExt = fileNameSplit[fileNameSplit.length - 1];
+
+		if ("wav".equalsIgnoreCase(fileExt))
+			writePCMToWAV(outName, audioEncoder.getEncodedPCM(), audioEncoder.getChannels(), audioEncoder.getSampleRate());
+		else if ("flac".equalsIgnoreCase(fileExt))
+			writePCMToFLAC(outName, audioEncoder.getEncodedPCM(), audioEncoder.getChannels(), audioEncoder.getSampleRate());
+	}
+
 	/**
 	 * Writes an array of PCM data to a WAV container.
 	 *
-	 * @param outName    Desired name for the wav file
+	 * @param outName    Desired name for the wav file (including file extension)
 	 * @param pcm        Array of PCM bytes that are to be written
 	 * @param channels   Number of channels to use for encoding to WAV
 	 * @param sampleRate Sample rate to be used for encoding to WAV
 	 */
-	public static void writePCMToWAV(@NotNull String outName, @NotNull byte[] pcm, int channels, int sampleRate) {
+	private static void writePCMToWAV(@NotNull String outName, @NotNull byte[] pcm, int channels, int sampleRate) {
 		AudioFormat f = new AudioFormat(sampleRate, 16, channels, true, false);
 		try {
 			Spinner.end();
@@ -75,5 +87,42 @@ public class AudioProcessor {
 		} catch (IOException e) {
 			System.err.println("Error writing encoded PCM to WAV file");
 		}
+	}
+
+	/**
+	 * Writes an array of PCM data to a file using the FLAC codec, which provides lossless compression.
+	 *
+	 * @param outName    Desired name for the flac file (including file extension)
+	 * @param pcm        Array of PCM bytes that are to be written
+	 * @param channels   Number of channels to use for encoding the FLAC file
+	 * @param sampleRate Sample rate to be used for encoding to FLAC
+	 */
+	private static void writePCMToFLAC(@NotNull String outName, @NotNull byte[] pcm, int channels, int sampleRate) {
+		AudioFormat f = new AudioFormat(sampleRate, 16, channels, true, false);
+		AudioInputStream ais = new AudioInputStream(new ByteArrayInputStream(pcm), f, pcm.length);
+
+		try {
+			FLACOutputStream fos = new FLACFileOutputStream(outName);
+
+			// Prepare the configuration so the encoder knows how to encode
+			StreamConfiguration sConf = new StreamConfiguration();
+			sConf.setChannelCount(channels);
+			sConf.setSampleRate(sampleRate);
+			sConf.setBitsPerSample(16);
+
+			FLACEncoder encoder = new FLACEncoder();
+			encoder.setStreamConfiguration(sConf);
+			encoder.setThreadCount(Runtime.getRuntime().availableProcessors());
+
+			encoder.setOutputStream(fos);
+			encoder.openFLACStream();
+
+			// Encode PCM data
+			AudioStreamEncoder.encodeAudioInputStream(ais, 16384 /* Defined in AudioStreamEncoder*/, encoder, true);
+			((FLACFileOutputStream) fos).close();
+		} catch (IOException e) {
+			System.err.println("Writing PCM data using FLAC codec failed.");
+		}
+		Spinner.end();
 	}
 }

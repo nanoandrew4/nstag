@@ -18,7 +18,6 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.net.URL;
 
 /**
  * Abstract class declaring the methods any decoder implementation must have. Also handles initializing the right decoder
