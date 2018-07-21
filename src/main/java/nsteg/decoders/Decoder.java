@@ -9,12 +9,7 @@ import nsteg.nsteg_utils.Compressor;
 import nsteg.nsteg_utils.Crypto;
 
 import javax.imageio.ImageIO;
-import javax.sound.sampled.AudioFormat;
-import javax.sound.sampled.AudioInputStream;
-import javax.sound.sampled.AudioSystem;
-import javax.sound.sampled.UnsupportedAudioFileException;
 import javax.validation.constraints.NotNull;
-import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -50,9 +45,6 @@ public abstract class Decoder {
 	 * @return Decoder capable of decoding data from the file passed
 	 */
 	private static Decoder getDecoder(@NotNull String encodedMediaFile) {
-		BufferedImage img;
-		AudioInputStream raw;
-
 		Spinner.printWithSpinner("Loading media file containing encoded data... ");
 
 		Decoder decoder = null;
@@ -61,18 +53,11 @@ public abstract class Decoder {
 		String fileExt = fileSplit[fileSplit.length - 1];
 		if (Encoder.outImgFormats.contains(fileExt)) {
 			try {
-				img = ImageIO.read(new File(encodedMediaFile));
-				decoder = new ImgDecoder(img);
+				decoder = new ImgDecoder(ImageIO.read(new File(encodedMediaFile)));
 			} catch (IOException ignored) {
 			}
-		} else if (Encoder.outAudFormats.contains(fileExt)) {
-			try {
-				raw = AudioSystem.getAudioInputStream(new File(encodedMediaFile));
-				AudioInputStream decoded = AudioSystem.getAudioInputStream(AudioFormat.Encoding.PCM_SIGNED, raw);
-				decoder = new AudioDecoder(decoded);
-			} catch (UnsupportedAudioFileException | IOException ignored) {
-			}
-		}
+		} else if (Encoder.outAudFormats.contains(fileExt))
+			decoder = new AudioDecoder(encodedMediaFile); // Or MP3, but only relevant bit is it being FLAC
 
 		Spinner.end();
 

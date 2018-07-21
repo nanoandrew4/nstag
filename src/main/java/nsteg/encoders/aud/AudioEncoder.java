@@ -5,8 +5,13 @@ import nsteg.nsteg_utils.BitByteConv;
 import nsteg.nsteg_utils.Crypto;
 import nsteg.processors.AudioProcessor;
 
+import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.UnsupportedAudioFileException;
 import javax.validation.constraints.NotNull;
+import java.io.File;
+import java.io.IOException;
 
 /**
  * This class handles the encoding of data into the PCM bytes of an audio file.
@@ -16,19 +21,62 @@ public class AudioEncoder extends Encoder {
 
 	private int currLSB = 0, currByte = 0;
 	private int LSBsToUse = 1;
-	private int channels, sampleRate;
+	private int channels, sampleRate, bitsPerSample;
 
 	/**
-	 * Creates a new instance of AudioEncoder, loads the passed AudioInputStream into an array, and writes the number
-	 * of least significant bits that will be used for encoding to the PCM byte array.
+	 * Creates a new instance of AudioEncoder, which loads the requested file into a PCM byte array. Some metadata is also
+	 * read from the audio file for later encoding, to ensure the sound quality is as consistent as can be.
+	 * Once this constructor is done, the encoder is ready to encode any data.
 	 *
-	 * @param audFile AudioInputStream of the audio file that will be used for encoding
-	 * @param LSBsToUse Number of least significant bits to use in the right channel (left is untouched)
+	 * @param audioFileName Name of the audio file that is to be used for encoding
+	 * @param LSBsToUse     Number of least significant bits to use in the right channel (left is untouched)
 	 */
-	public AudioEncoder(@NotNull AudioInputStream audFile, int LSBsToUse) {
-		this.channels = audFile.getFormat().getChannels();
-		this.sampleRate = (int) audFile.getFormat().getSampleRate();
-		audBytes = AudioProcessor.loadAudioFile(audFile);
+	public AudioEncoder(@NotNull String audioFileName, int LSBsToUse) {
+		if (audioFileName.endsWith("flac")) {
+			FLACData data = AudioProcessor.loadFLACFile(audioFileName);
+			this.channels = data.channels;
+			this.bitsPerSample = data.bitsPerSample;
+			this.sampleRate = data.sampleRate;
+			this.audBytes = data.pcm;
+
+			encodeBits(BitByteConv.intToBitArray(LSBsToUse, LSB_BITS_COUNT));
+			this.LSBsToUse = LSBsToUse;
+		} else {
+			AudioInputStream rawStream;
+			try {
+				rawStream = AudioSystem.getAudioInputStream(new File(audioFileName));
+			} catch (UnsupportedAudioFileException | IOException e) {
+				e.printStackTrace();
+				return;
+			}
+
+			AudioInputStream decodedStream = AudioSystem.getAudioInputStream(AudioFormat.Encoding.PCM_SIGNED, rawStream);
+			initWithStream(decodedStream, LSBsToUse);
+		}
+	}
+
+	/**
+	 * For sole use by the unit testing classes, since they use a stream of random noise instead of reading data
+	 * from a file. Although this works for any audio stream, ideally the other constructor should be used for
+	 * convenience and flexibility anywhere else in the program.
+	 *
+	 * @param audioStream Audio file stream, in PCM_SIGNED encoding
+	 * @param LSBsToUse   Number of least significant bits to encode with
+	 */
+	public AudioEncoder(@NotNull AudioInputStream audioStream, int LSBsToUse) {
+		initWithStream(audioStream, LSBsToUse);
+	}
+
+	/*
+	 * Initializes some metadata variables for later use when re-encoding the PCM byte data to the user requested format,
+	 * as well as reading the PCM byte data from the audio stream.
+	 */
+	private void initWithStream(AudioInputStream audioStream, int LSBsToUse) {
+		this.channels = audioStream.getFormat().getChannels();
+		this.bitsPerSample = audioStream.getFormat().getSampleSizeInBits();
+		this.sampleRate = (int) audioStream.getFormat().getSampleRate();
+
+		this.audBytes = AudioProcessor.loadAudioFile(audioStream);
 
 		encodeBits(BitByteConv.intToBitArray(LSBsToUse, LSB_BITS_COUNT));
 		this.LSBsToUse = LSBsToUse;
@@ -36,6 +84,7 @@ public class AudioEncoder extends Encoder {
 
 	/**
 	 * Returns the PCM byte array that this AudioEncoder instance is working on.
+	 *
 	 * @return PCM byte array containing original PCM data, with any changes made by this class to the byte array
 	 */
 	public byte[] getEncodedPCM() {
@@ -44,6 +93,7 @@ public class AudioEncoder extends Encoder {
 
 	/**
 	 * Returns the number of channels that the audio file being worked with has.
+	 *
 	 * @return Number of channels in the audio file
 	 */
 	public int getChannels() {
@@ -52,10 +102,20 @@ public class AudioEncoder extends Encoder {
 
 	/**
 	 * Returns the sample rate of the audio file being worked on.
+	 *
 	 * @return Sample rate of the audio file
 	 */
 	public int getSampleRate() {
 		return sampleRate;
+	}
+
+	/**
+	 * Return the number of bits that each sample is made of.
+	 *
+	 * @return Bits per sample for the audio file being worked on
+	 */
+	public int getBitsPerSample() {
+		return bitsPerSample;
 	}
 
 	/**
@@ -93,6 +153,7 @@ public class AudioEncoder extends Encoder {
 
 	/**
 	 * Encodes the specified bytes to the PCM byte array. This method uses encodeBits(byte[] bits) internally.
+	 *
 	 * @param bytesToEncode Array of bytes to be encoded
 	 */
 	public void encodeBytes(@NotNull byte[] bytesToEncode) {
@@ -106,7 +167,7 @@ public class AudioEncoder extends Encoder {
 		if (encrypted)
 			requiredBits += Crypto.GCM_AAD_SIZE + Crypto.AES_IV_SIZE + Crypto.SALT_SIZE_BITS;
 
-		int maxCapacity = ((audBytes.length * Byte.SIZE) / 2) * LSBsToUse;
+		long maxCapacity = (((long) audBytes.length * Byte.SIZE) / 2) * LSBsToUse;
 
 		if (requiredBits > maxCapacity) {
 			System.err.println("Audio file not long enough, consider allowing more bits or using another audio file");

@@ -11,14 +11,9 @@ import nsteg.processors.AudioProcessor;
 import nsteg.processors.ImageProcessor;
 
 import javax.imageio.ImageIO;
-import javax.sound.sampled.AudioFormat;
-import javax.sound.sampled.AudioInputStream;
-import javax.sound.sampled.AudioSystem;
-import javax.sound.sampled.UnsupportedAudioFileException;
 import javax.validation.constraints.NotNull;
 import java.io.File;
 import java.io.IOException;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -126,25 +121,18 @@ public abstract class Encoder {
 		Spinner.printWithSpinner("Loading media file to encode file into... ");
 
 		String[] split = file.split("\\.");
-		String suffix = split[split.length - 1];
+		String fileExt = split[split.length - 1];
 
 		Encoder encoder = null;
 
-		if (inImgFormats.contains(suffix)) {
+		if (inImgFormats.contains(fileExt)) {
 			try {
 				encoder = new ImgEncoder(ImageIO.read(new File(file)), LSBsToUse);
 			} catch (IOException ignored) {
 			}
-		} else if (inAudFormats.contains(suffix)) {
-			try {
-				AudioInputStream decoded = AudioSystem.getAudioInputStream(
-						AudioFormat.Encoding.PCM_SIGNED,
-						AudioSystem.getAudioInputStream(new File(file))
-				);
-				encoder = new AudioEncoder(decoded, LSBsToUse);
-			} catch (UnsupportedAudioFileException | IOException ignored) {
-			}
-		} else
+		} else if (inAudFormats.contains(fileExt))
+			encoder = new AudioEncoder(file, LSBsToUse);
+		else
 			System.err.println("File format not supported.");
 
 		Spinner.end();

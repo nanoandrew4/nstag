@@ -50,6 +50,10 @@
             <id>mp3plugin</id>
             <url>file://${project.basedir}/lib</url>
         </repository>
+        <repository>
+            <id>JustFLAC</id>
+            <url>file://${project.basedir}/lib</url>
+        </repository>
     </repositories>
 
     <dependencies>
@@ -63,11 +67,18 @@
             <artifactId>mp3plugin</artifactId>
             <version>1</version>
         </dependency>
+
         <dependency>
             <groupId>net.sourceforge.javaflacencoder</groupId>
             <artifactId>java-flac-encoder</artifactId>
             <version>0.3.7</version>
         </dependency>
+        <dependency>
+            <groupId>drogatkin</groupId>
+            <artifactId>JustFLAC</artifactId>
+            <version>1</version>
+        </dependency>
+
         <dependency>
             <groupId>javax.validation</groupId>
             <artifactId>validation-api</artifactId>

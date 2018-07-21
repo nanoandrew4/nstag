@@ -9,6 +9,7 @@ import nsteg.encoders.img.ImgEncoder;
 import nsteg.nsteg_utils.BitByteConv;
 import org.junit.Test;
 
+import javax.sound.sampled.AudioFileFormat;
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
 import java.awt.image.BufferedImage;

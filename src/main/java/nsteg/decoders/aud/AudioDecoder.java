@@ -1,11 +1,17 @@
 package nsteg.decoders.aud;
 
 import nsteg.decoders.Decoder;
+import nsteg.encoders.aud.FLACData;
 import nsteg.nsteg_utils.BitByteConv;
 import nsteg.processors.AudioProcessor;
 
+import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.UnsupportedAudioFileException;
 import javax.validation.constraints.NotNull;
+import java.io.File;
+import java.io.IOException;
 
 /**
  * This class is responsible for decoding data that was previously encoded using the AudioEncoder from the PCM data
@@ -19,10 +25,41 @@ public class AudioDecoder extends Decoder {
 	// Number of least significant bits to read from each byte of PCM data
 	private int LSBsToUse = 1;
 
-	public AudioDecoder(@NotNull AudioInputStream audFile) {
-		encodedBytes = AudioProcessor.loadAudioFile(audFile);
+	/**
+	 * Creates a new instance of AudioDecoder, which loads the audio file to a PCM byte array. The number of least
+	 * significant bits used during encoding is also read. Once this constructor is done, the decoder is ready to decode.
+	 *
+	 * @param audioFileName Name of the audio file to decode the PCM byte array from
+	 */
+	public AudioDecoder(@NotNull String audioFileName) {
+		if (audioFileName.endsWith("flac")) {
+			FLACData data = AudioProcessor.loadFLACFile(audioFileName);
+			this.encodedBytes = data.pcm;
+		} else {
+			AudioInputStream rawStream;
+			try {
+				rawStream = AudioSystem.getAudioInputStream(new File(audioFileName));
+			} catch (UnsupportedAudioFileException | IOException e) {
+				System.err.println("Error opening audio stream.");
+				return;
+			}
+			AudioInputStream decodedStream = AudioSystem.getAudioInputStream(AudioFormat.Encoding.PCM_SIGNED, rawStream);
+			this.encodedBytes = AudioProcessor.loadAudioFile(decodedStream);
+		}
 
-		LSBsToUse = BitByteConv.bitArrayToInt(readBits(LSB_BITS_COUNT), false);
+		this.LSBsToUse = BitByteConv.bitArrayToInt(readBits(LSB_BITS_COUNT), false);
+	}
+
+	/**
+	 * For sole use by the unit testing classes, since they create a stream of random noise instead of reading from a
+	 * file. Although this works for any stream, ideally the other constructor should be used for convenience and
+	 * flexibility anywhere else in the program.
+	 *
+	 * @param audioStream Audio file stream, in PCM_SIGNED encoding
+	 */
+	public AudioDecoder(@NotNull AudioInputStream audioStream) {
+		this.encodedBytes = AudioProcessor.loadAudioFile(audioStream);
+		this.LSBsToUse = BitByteConv.bitArrayToInt(readBits(LSB_BITS_COUNT), false);
 	}
 
 	/**
