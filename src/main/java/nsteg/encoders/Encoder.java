@@ -60,10 +60,10 @@ public abstract class Encoder {
 		String[] outImgSuffixes = {"png", "bmp", "tif", "tiff"};
 		outImgFormats.addAll(Arrays.asList(outImgSuffixes));
 
-		String[] inAudSuffixes = {"mp3", "wav", "flac"};
+		String[] inAudSuffixes = {"mp3", "wav", "flac", "alac"};
 		inAudFormats.addAll(Arrays.asList(inAudSuffixes));
 
-		String[] outAudSuffixes = {"wav", "flac"};
+		String[] outAudSuffixes = {"wav", "flac", "alac"};
 		outAudFormats.addAll(Arrays.asList(outAudSuffixes));
 	}
 

@@ -19,6 +19,13 @@ import java.io.*;
 
 public class AudioProcessor {
 
+	/**
+	 * Returns a copy of the array that is passed as the argument, but that is twice as big as the passed array.
+	 *
+	 * @param arr Array to resize
+	 * @param pos Position to check if out of bounds, to determine if resizing is necessary
+	 * @return Resized array if pos was out of bounds, passed array otherwise
+	 */
 	private static byte[] resize(@NotNull byte[] arr, int pos) {
 		if (pos > arr.length) {
 			byte[] tmp = arr;
@@ -29,7 +36,17 @@ public class AudioProcessor {
 		return arr;
 	}
 
-	private static byte[] finalResize(@NotNull byte[] arr, int desiredSize) {
+	/**
+	 * Returns a copy of the array that is passed as the argument, but that is sized according to the requested size
+	 * by the user. This is useful if you have been using the resize(byte[] arr, int pos) method, and have an array
+	 * that is too big for the data it contains. It will cut any excess data off, and return only an array containing
+	 * relevant data.
+	 *
+	 * @param arr Array to be trimmed
+	 * @param desiredSize Desired length for the trimmed array
+	 * @return Trimmed array
+	 */
+	private static byte[] trimArray(@NotNull byte[] arr, int desiredSize) {
 		byte[] rArr = new byte[desiredSize];
 		System.arraycopy(arr, 0, rArr, 0, desiredSize);
 		return rArr;
@@ -51,7 +68,6 @@ public class AudioProcessor {
 		byte[] byteSample = new byte[bytesPerSample];
 
 		byte[] buffer = new byte[(int) Math.pow(2, 20)];
-		byte[] decBytes = null;
 		int bytesRead = 0;
 
 		try {
@@ -59,13 +75,13 @@ public class AudioProcessor {
 				System.arraycopy(byteSample, 0, buffer, bytesRead, bytesPerSample);
 				bytesRead += bytesPerSample;
 
-				decBytes = resize(buffer, bytesRead + bytesPerSample);
+				buffer = resize(buffer, bytesRead + bytesPerSample);
 			}
 		} catch (IOException e) {
 			System.err.println("Error reading audio file into memory");
 		}
 
-		return finalResize(decBytes, bytesRead);
+		return trimArray(buffer, bytesRead);
 	}
 
 	/**
