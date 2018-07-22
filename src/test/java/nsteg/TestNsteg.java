@@ -63,7 +63,7 @@ public class TestNsteg {
 		for (int bpc = 1; bpc < 9; bpc++) {
 			AudioInputStream sampleAudio = new AudioInputStream(new ByteArrayInputStream(audData), af, audData.length);
 
-			byte[] data = genRandData(1 << 13);
+			byte[] data = genRandData(1 << 13); // 8KiB
 			Encoder ae = new AudioEncoder(sampleAudio, bpc);
 			ae.encodeBits(BitByteConv.intToBitArray(data.length, 32));
 			ae.encodeBytes(data);
@@ -78,6 +78,24 @@ public class TestNsteg {
 
 			byte[] fSizeBits = ad.readBits(32);
 			byte[] decData = ad.readBytes(BitByteConv.bitArrayToInt(fSizeBits, false));
+
+			// 10950
+
+			for (int i = 2045; i < 2052; i++) {
+				byte[] bits = BitByteConv.intToBitArray(data[i], Byte.SIZE);
+				for (byte b : bits)
+					System.out.print(b);
+				System.out.print(" ");
+			}
+			System.out.println();
+
+			for (int i = 2045; i < 2052; i++) {
+				byte[] bits = BitByteConv.intToBitArray(decData[i], Byte.SIZE);
+				for (byte b : bits)
+					System.out.print(b);
+				System.out.print(" ");
+			}
+			System.out.println();
 
 			assertArrayEquals(data, decData);
 

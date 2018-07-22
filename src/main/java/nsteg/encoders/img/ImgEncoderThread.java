@@ -11,9 +11,9 @@ import java.awt.image.BufferedImage;
  * where it will finish encoding the passed data, so that ImgEncoder can then assign more jobs to other instances of
  * this class.
  */
-public class EncoderThread extends Thread {
+public class ImgEncoderThread extends Thread {
 	// Each thread has its own instance, so it can load values and return them to ImgEncoder, so it can continue submitting jobs
-	private EndState endState = new EndState();
+	private ImgEndState imgEndState = new ImgEndState();
 
 	private BufferedImage img;
 	private boolean running = true; // False will cause the thread to exit
@@ -25,18 +25,18 @@ public class EncoderThread extends Thread {
 	private static int bitsPerChannel, numOfChannels;
 	private int sx, sy, currLSB, nextChanToWrite, currBit;
 
-	EncoderThread(@NotNull BufferedImage img, int numOfChannels) {
+	ImgEncoderThread(@NotNull BufferedImage img, int numOfChannels) {
 		this.setDaemon(true);
 
 		this.img = img;
-		EncoderThread.numOfChannels = numOfChannels;
+		ImgEncoderThread.numOfChannels = numOfChannels;
 
 		width = img.getWidth();
 		height = img.getHeight();
 	}
 
 	static void setBitsPerChannel(int bitsPerChannel) {
-		EncoderThread.bitsPerChannel = bitsPerChannel;
+		ImgEncoderThread.bitsPerChannel = bitsPerChannel;
 	}
 
 	/**
@@ -76,7 +76,7 @@ public class EncoderThread extends Thread {
 	}
 
 	/**
-	 * Submits a job for this thread to carry out. Initial encoding positions are given, and a EndState instance is
+	 * Submits a job for this thread to carry out. Initial encoding positions are given, and a ImgEndState instance is
 	 * returned containing where the encoding process this thread will carry out will end, so that ImgEncoder can
 	 * submit more jobs without having to wait for this one to finish.
 	 *
@@ -85,10 +85,10 @@ public class EncoderThread extends Thread {
 	 * @param sy              Starting 'y' coordinate in the image
 	 * @param sLSB            Starting least significant bit position
 	 * @param nextChanToWrite First channel to write to
-	 * @return EndState instance containing ending positions of the starting values passed, so that jobs can quickly
+	 * @return ImgEndState instance containing ending positions of the starting values passed, so that jobs can quickly
 	 * be submitted to other threads, without having to wait for this one to finish
 	 */
-	EndState submitJob(@NotNull byte[] bitsToWrite, int sx, int sy, int sLSB, int nextChanToWrite) {
+	ImgEndState submitJob(@NotNull byte[] bitsToWrite, int sx, int sy, int sLSB, int nextChanToWrite) {
 		if (active) {
 			System.err.println("Thread was busy while attempting to submit job!");
 			return null;
@@ -117,13 +117,13 @@ public class EncoderThread extends Thread {
 		 * number of times that the available channels will be cycled through in order to encode the data, then adding
 		 * that to the initial starting LSB, and using the modulo operator to get the final LSB.
 		 */
-		endState.endX = (sx + (bitsToWrite.length / (bitsPerChannel * numOfChannels))) % width;
-		endState.endX += (sLSB + ((nextChanToWrite + (bitsToWrite.length % (bitsPerChannel * numOfChannels))) / numOfChannels)) / bitsPerChannel;
-		endState.endY = sy + ((sx + (bitsToWrite.length / (bitsPerChannel * numOfChannels))) / width);
-		endState.endNextChanToWrite = (nextChanToWrite + bitsToWrite.length) % numOfChannels;
-		endState.endLSB = (sLSB + ((nextChanToWrite + (bitsToWrite.length % (bitsPerChannel * numOfChannels))) / numOfChannels)) % bitsPerChannel;
+		imgEndState.endX = (sx + (bitsToWrite.length / (bitsPerChannel * numOfChannels))) % width;
+		imgEndState.endX += (sLSB + ((nextChanToWrite + (bitsToWrite.length % (bitsPerChannel * numOfChannels))) / numOfChannels)) / bitsPerChannel;
+		imgEndState.endY = sy + ((sx + (bitsToWrite.length / (bitsPerChannel * numOfChannels))) / width);
+		imgEndState.endNextChanToWrite = (nextChanToWrite + bitsToWrite.length) % numOfChannels;
+		imgEndState.endLSB = (sLSB + ((nextChanToWrite + (bitsToWrite.length % (bitsPerChannel * numOfChannels))) / numOfChannels)) % bitsPerChannel;
 
-		return endState;
+		return imgEndState;
 	}
 
 	/**

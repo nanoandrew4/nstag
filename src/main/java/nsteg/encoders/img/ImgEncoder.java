@@ -19,6 +19,8 @@ import java.awt.image.BufferedImage;
  * means no space is wasted.
  */
 public class ImgEncoder extends Encoder {
+	private ImgEncoderThread[] encThreads = new ImgEncoderThread[Runtime.getRuntime().availableProcessors()];
+
 	private BufferedImage img; // Image to read (A)RGB data from and to write (A)RGB modified data to
 	private int x = 0, y = 0; // Pixel coords
 
@@ -49,17 +51,7 @@ public class ImgEncoder extends Encoder {
 		int numOfChannels = img.getColorModel().hasAlpha() ? 4 : 3;
 		chunkBitSize = (numOfChannels == 3 ? THREE_CHAN_BLOCK_SIZE : FOUR_CHAN_BLOCK_SIZE) * Byte.SIZE;
 
-		for (int i = 0; i < encThreads.length; i++) {
-			encThreads[i] = new EncoderThread(img, numOfChannels);
-			encThreads[i].start();
-		}
-
-		// Encode desired LSBs per channel using only LSB of first (or first and second, depending on number of channels) pixel(s)
-		EncoderThread.setBitsPerChannel(1);
-		encodeBits(BitByteConv.intToBitArray(bitsPerChannel, 4));
-
-		while (encThreads[0].isActive())
-			sleep(2);
+		initThreads(numOfChannels, bitsPerChannel);
 
 		// Use two pixels for bitsPerChannel encoding, so restart encoding at 3rd pixel, if image only has three channels
 		if (numOfChannels == 3) {
@@ -67,7 +59,7 @@ public class ImgEncoder extends Encoder {
 			currLSB = nextChanToWrite = 0;
 		}
 
-		EncoderThread.setBitsPerChannel(bitsPerChannel);
+		ImgEncoderThread.setBitsPerChannel(bitsPerChannel);
 	}
 
 	// See abstract method declaration
@@ -112,11 +104,11 @@ public class ImgEncoder extends Encoder {
 	public void encodeBits(@NotNull byte[] bitsToEncode) {
 		for (int i = 0; i < encThreads.length; i %= encThreads.length) {
 			if (!encThreads[i].isActive()) {
-				EndState endState = encThreads[i].submitJob(bitsToEncode, x, y, currLSB, nextChanToWrite);
-				x = endState.endX;
-				y = endState.endY;
-				currLSB = endState.endLSB;
-				nextChanToWrite = endState.endNextChanToWrite;
+				ImgEndState imgEndState = encThreads[i].submitJob(bitsToEncode, x, y, currLSB, nextChanToWrite);
+				x = imgEndState.endX;
+				y = imgEndState.endY;
+				currLSB = imgEndState.endLSB;
+				nextChanToWrite = imgEndState.endNextChanToWrite;
 				break;
 			} else
 				sleep(1);
@@ -154,8 +146,22 @@ public class ImgEncoder extends Encoder {
 		}
 	}
 
+	private void initThreads(int numOfChannels, int bitsPerChannel) {
+		for (int i = 0; i < encThreads.length; i++) {
+			encThreads[i] = new ImgEncoderThread(img, numOfChannels);
+			encThreads[i].start();
+		}
+
+		// Encode desired LSBs per channel using only LSB of first (or first and second, depending on number of channels) pixel(s)
+		ImgEncoderThread.setBitsPerChannel(1);
+		encodeBits(BitByteConv.intToBitArray(bitsPerChannel, 4));
+
+		while (encThreads[0].isActive())
+			sleep(2);
+	}
+
 	/**
-	 * Stops all EncoderThread instances. Must be called once this ImgEncoder instance has finished writing data,
+	 * Stops all ImgEncoderThread instances. Must be called once this ImgEncoder instance has finished writing data,
 	 * otherwise the encoding will not complete successfully.
 	 */
 	public void stopThreads() {

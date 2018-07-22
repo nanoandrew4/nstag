@@ -17,10 +17,11 @@ import java.io.IOException;
  * This class handles the encoding of data into the PCM bytes of an audio file.
  */
 public class AudioEncoder extends Encoder {
+	private AudEncoderThread[] encThreads = new AudEncoderThread[Runtime.getRuntime().availableProcessors()];
+
 	private byte[] audBytes; // PCM data of the audio file that is to be used to encode data
 
 	private int currLSB = 0, currByte = 0;
-	private int LSBsToUse = 1;
 	private int channels, sampleRate, bitsPerSample;
 
 	/**
@@ -39,8 +40,7 @@ public class AudioEncoder extends Encoder {
 			this.sampleRate = data.sampleRate;
 			this.audBytes = data.pcm;
 
-			encodeBits(BitByteConv.intToBitArray(LSBsToUse, LSB_BITS_COUNT));
-			this.LSBsToUse = LSBsToUse;
+			initThreads(audBytes, LSBsToUse);
 		} else {
 			AudioInputStream rawStream;
 			try {
@@ -78,8 +78,7 @@ public class AudioEncoder extends Encoder {
 
 		this.audBytes = AudioProcessor.loadAudioFile(audioStream);
 
-		encodeBits(BitByteConv.intToBitArray(LSBsToUse, LSB_BITS_COUNT));
-		this.LSBsToUse = LSBsToUse;
+		initThreads(audBytes, LSBsToUse);
 	}
 
 	/**
@@ -127,28 +126,16 @@ public class AudioEncoder extends Encoder {
 	 * @param bits Array of bits to encode into the audio file
 	 */
 	public void encodeBits(@NotNull byte[] bits) {
-		int bitPos = 0;
-		for (; currByte < audBytes.length && bitPos < bits.length; ) {
-			byte[] byteBits = BitByteConv.intToBitArray(audBytes[currByte], Byte.SIZE);
-
-			// Write bits to the least significant bit(s), until no more bits can be written to current byte, or all bits have been written
-			for (; currLSB < LSBsToUse && bitPos < bits.length; currLSB++)
-				byteBits[byteBits.length - 1 - currLSB] = bits[bitPos++];
-			audBytes[currByte] = (byte) BitByteConv.bitArrayToInt(byteBits, true);
-
-			/*
-			 * If no more bits to write in this byte, move on two bytes. This is done to prevent audible changes, since
-			 * most music has two channels, and apparently changing the data in the second results in barely any
-			 * perceptible distortion.
-			 */
-			if (currLSB == LSBsToUse) {
-				currLSB = 0;
-				currByte += 2;
-			}
+		for (int i = 0; i < encThreads.length; i %= encThreads.length) {
+			if (!encThreads[i].isActive()) {
+				AudEndState endState = encThreads[i].submitJob(currByte, currLSB, bits);
+				currByte = endState.endByte;
+				currLSB = endState.endLSB;
+				return;
+			} else
+				sleep(1);
+			i++;
 		}
-
-		if (currByte == audBytes.length) // Should never happen
-			System.err.println("No more audio data to use...");
 	}
 
 	/**
@@ -157,8 +144,19 @@ public class AudioEncoder extends Encoder {
 	 * @param bytesToEncode Array of bytes to be encoded
 	 */
 	public void encodeBytes(@NotNull byte[] bytesToEncode) {
-		for (byte b : bytesToEncode)
-			encodeBits(BitByteConv.intToBitArray(b, Byte.SIZE));
+		int currByte = 0;
+		int bytesSize = bytesToEncode.length;
+		for (; currByte < bytesToEncode.length; ) {
+			int bytesPerThread = bytesToEncode.length / encThreads.length;
+			bytesPerThread = (bytesSize < bytesPerThread ? bytesSize : bytesPerThread);
+			byte[] bits = new byte[bytesPerThread * Byte.SIZE];
+			for (int i = 0; i < bytesPerThread; i++)
+				System.arraycopy(BitByteConv.intToBitArray(bytesToEncode[currByte++], Byte.SIZE), 0, bits, i * Byte.SIZE, Byte.SIZE);
+
+			encodeBits(bits);
+
+			bytesSize -= bytesPerThread;
+		}
 	}
 
 	// See abstract method for docs
@@ -180,7 +178,35 @@ public class AudioEncoder extends Encoder {
 		return true;
 	}
 
+	private void initThreads(byte[] pcm, int LSBsToUse) {
+		for (int i = 0; i < encThreads.length; i++) {
+			encThreads[i] = new AudEncoderThread(pcm);
+			encThreads[i].start();
+		}
+
+		AudEncoderThread.setLSBToUse(1);
+		encodeBits(BitByteConv.intToBitArray(LSBsToUse, LSB_BITS_COUNT));
+		while (encThreads[0].isActive())
+			sleep(1);
+
+		AudEncoderThread.setLSBToUse(LSBsToUse);
+	}
+
+	/**
+	 * Stops all AudEncoderThread instances. Must be called once this ImgEncoder instance has finished writing data,
+	 * otherwise the encoding will not complete successfully.
+	 */
 	public void stopThreads() {
-		// Impl pending, probably in next minor release
+		for (int i = 0; i < encThreads.length; ) {
+			if (!encThreads[i].isActive()) {
+				encThreads[i].stopRunning();
+				try {
+					encThreads[i].join();
+				} catch (InterruptedException ignored) {
+				}
+				i++;
+			} else
+				sleep(1);
+		}
 	}
 }
