@@ -19,11 +19,11 @@ public class AudEncoderThread extends Thread {
 		this.pcm = pcm;
 	}
 
-	public static void setLSBToUse(int LSBToUse) {
+	static void setLSBToUse(int LSBToUse) {
 		AudEncoderThread.LSBsToUse = LSBToUse;
 	}
 
-	public void stopRunning() {
+	void stopRunning() {
 		running = false;
 	}
 
@@ -31,23 +31,15 @@ public class AudEncoderThread extends Thread {
 		return active;
 	}
 
-	public AudEndState submitJob(int startByte, int startLSB, byte[] bitsToEncode) {
+	AudEndState submitJob(int startByte, int startLSB, byte[] bitsToEncode) {
 		this.currByte = startByte;
 		this.currLSB = startLSB;
 		this.bitsToEncode = bitsToEncode;
 
 		active = true;
 
-//		System.out.println("Start byte: " + startByte);
-//		System.out.println("Start LSB: " + startLSB);
-
-		// Calc and return endpos, then all should be good to go. Remember left channel is untouched
-		audEndState.endByte = startByte + (2 * (bitsToEncode.length / LSBsToUse));
 		audEndState.endLSB = (startLSB + bitsToEncode.length) % LSBsToUse;
-
-//		System.out.println("End byte: " + audEndState.endByte);
-//		System.out.println("End LSB: " + audEndState.endLSB);
-//		System.out.println();
+		audEndState.endByte = startByte + (2 * ((startLSB + bitsToEncode.length) / LSBsToUse));
 
 		return audEndState;
 	}
@@ -59,7 +51,6 @@ public class AudEncoderThread extends Thread {
 				int currBitPos = 0;
 				while (currBitPos < bitsToEncode.length) {
 					byte[] byteBits = BitByteConv.intToBitArray(pcm[currByte], Byte.SIZE);
-
 					// Write bits to the least significant bit(s), until no more bits can be written to current byte, or all bits have been written
 					for (; currLSB < LSBsToUse && currBitPos < bitsToEncode.length; currLSB++)
 						byteBits[byteBits.length - 1 - currLSB] = bitsToEncode[currBitPos++];

@@ -79,24 +79,6 @@ public class TestNsteg {
 			byte[] fSizeBits = ad.readBits(32);
 			byte[] decData = ad.readBytes(BitByteConv.bitArrayToInt(fSizeBits, false));
 
-			// 10950
-
-			for (int i = 2045; i < 2052; i++) {
-				byte[] bits = BitByteConv.intToBitArray(data[i], Byte.SIZE);
-				for (byte b : bits)
-					System.out.print(b);
-				System.out.print(" ");
-			}
-			System.out.println();
-
-			for (int i = 2045; i < 2052; i++) {
-				byte[] bits = BitByteConv.intToBitArray(decData[i], Byte.SIZE);
-				for (byte b : bits)
-					System.out.print(b);
-				System.out.print(" ");
-			}
-			System.out.println();
-
 			assertArrayEquals(data, decData);
 
 			System.out.println("Passed bpc " + bpc + " for audio encoding/decoding");
