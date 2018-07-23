@@ -14,7 +14,16 @@ import java.io.File;
 import java.io.IOException;
 
 /**
- * This class handles the encoding of data into the PCM bytes of an audio file.
+ * This class handles the encoding of data into the PCM bytes of an audio file. The encoding process works as follows.
+ * The PCM data from the audio file is decoded and stored in a byte array. The PCM byte array is then sent to the
+ * worker threads, so that it can be worked on in parallel. From there encodeBits() and encodeBytes() take care of the
+ * encoding of any relevant data, although the number of least significant bits being used is encoded in the
+ * constructor of this class.
+ * <p><br>
+ * One thing to note is that only the right channel bytes are used, so half the bytes in the PCM byte
+ * array are left untouched. This is because modifying the left channel byte even a bit causes very noticeable
+ * distortions to the sound, whereas the right channel is more generous with how much can be modified without it being
+ * perceivable.
  */
 public class AudioEncoder extends Encoder {
 	private AudEncoderThread[] encThreads = new AudEncoderThread[Runtime.getRuntime().availableProcessors()];
@@ -22,7 +31,7 @@ public class AudioEncoder extends Encoder {
 	private byte[] audBytes; // PCM data of the audio file that is to be used to encode data
 
 	private int currLSB = 0, currByte = 0;
-	private int channels, sampleRate, bitsPerSample;
+	private int channels, sampleRate, bitsPerSample; // Stored for writing to disk later
 
 	/**
 	 * Creates a new instance of AudioEncoder, which loads the requested file into a PCM byte array. Some metadata is also
@@ -46,7 +55,7 @@ public class AudioEncoder extends Encoder {
 			try {
 				rawStream = AudioSystem.getAudioInputStream(new File(audioFileName));
 			} catch (UnsupportedAudioFileException | IOException e) {
-				e.printStackTrace();
+				System.err.println("Error opening the audio stream.");
 				return;
 			}
 
@@ -140,6 +149,8 @@ public class AudioEncoder extends Encoder {
 
 	/**
 	 * Encodes the specified bytes to the PCM byte array. This method uses encodeBits(byte[] bits) internally.
+	 * The bytes are split amongst the threads. This method converts chunks of bytes into an array of bits, and passes
+	 * them on to the threads, to split the workload.
 	 *
 	 * @param bytesToEncode Array of bytes to be encoded
 	 */
@@ -178,6 +189,14 @@ public class AudioEncoder extends Encoder {
 		return true;
 	}
 
+	/**
+	 * Initializes the threads and encodes the least significant bits to be used during the encoding process.
+	 * Once this method returns, the threads are ready to encode.
+	 *
+	 * @param pcm       PCM byte array representing the audio file into which the data will be encoded
+	 * @param LSBsToUse Number of least significant bits to use on each right channel byte. More allows for more data to
+	 *                  be stored, but will cause greater distortion. 1-4 recommended.
+	 */
 	private void initThreads(byte[] pcm, int LSBsToUse) {
 		for (int i = 0; i < encThreads.length; i++) {
 			encThreads[i] = new AudEncoderThread(pcm);

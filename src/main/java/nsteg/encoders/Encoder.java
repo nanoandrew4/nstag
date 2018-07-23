@@ -2,7 +2,6 @@ package nsteg.encoders;
 
 import nsteg.Spinner;
 import nsteg.encoders.aud.AudioEncoder;
-import nsteg.encoders.img.ImgEncoderThread;
 import nsteg.encoders.img.ImgEncoder;
 import nsteg.nsteg_utils.BitByteConv;
 import nsteg.nsteg_utils.Compressor;
@@ -14,8 +13,6 @@ import javax.imageio.ImageIO;
 import javax.validation.constraints.NotNull;
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.Array;
-import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Arrays;
