@@ -27,18 +27,6 @@ public class ImgEncoder extends Encoder {
 	private int nextChanToWrite; // Next channel, at current LSB position in current pixel, to be written to
 	private int currLSB; // Current least significant bit position, for all channels, at the current pixel
 
-	/*
-	 * These numbers specify the maximum number of bytes that a thread should have to handle. I promise they are not
-	 * magic numbers. Both of them are, at their core, the lowest common multiple of all the possible number of bits
-	 * a pixel could have with the available channels. For three channel images, the lowest common denominator is 2520,
-	 * and for four channel images, 3360. These are just the values stated, but scaled up, so threads spend more time
-	 * encoding and less time writing back and forth.
-	 */
-	private final int THREE_CHAN_BLOCK_SIZE = 80640; // 645120 bits
-	private final int FOUR_CHAN_BLOCK_SIZE = 107520; // 860160 bits
-
-	private int chunkBitSize;
-
 	/**
 	 * Initializes an ImgEncoder instance with the given image, determines the number of channels in the image,
 	 * and encodes the number of LSBs that will be used in each channel into the image.
@@ -49,7 +37,6 @@ public class ImgEncoder extends Encoder {
 	public ImgEncoder(@NotNull BufferedImage origImg, int bitsPerChannel) {
 		img = origImg;
 		int numOfChannels = img.getColorModel().hasAlpha() ? 4 : 3;
-		chunkBitSize = (numOfChannels == 3 ? THREE_CHAN_BLOCK_SIZE : FOUR_CHAN_BLOCK_SIZE) * Byte.SIZE;
 
 		initThreads(numOfChannels, bitsPerChannel);
 
@@ -108,7 +95,7 @@ public class ImgEncoder extends Encoder {
 				x = imgEndState.endX;
 				y = imgEndState.endY;
 				currLSB = imgEndState.endLSB;
-				nextChanToWrite = imgEndState.endNextChanToWrite;
+				nextChanToWrite = imgEndState.endChan;
 				break;
 			} else
 				sleep(1);
@@ -124,25 +111,17 @@ public class ImgEncoder extends Encoder {
 	 */
 	public void encodeBytes(@NotNull byte[] bytesToEncode) {
 		int currByte = 0;
-		int chunkByteSize = chunkBitSize / Byte.SIZE;
-		while (currByte < bytesToEncode.length) {
-			int currBitPos = 0;
+		int bytesSize = bytesToEncode.length;
+		for (; currByte < bytesToEncode.length; ) {
+			int bytesPerThread = bytesToEncode.length / encThreads.length;
+			bytesPerThread = (bytesSize < bytesPerThread ? bytesSize : bytesPerThread);
+			byte[] bits = new byte[bytesPerThread * Byte.SIZE];
+			for (int i = 0; i < bytesPerThread; i++)
+				System.arraycopy(BitByteConv.intToBitArray(bytesToEncode[currByte++], Byte.SIZE), 0, bits, i * Byte.SIZE, Byte.SIZE);
 
-			int numOfBitsToEncode;
-			if (currByte + chunkByteSize < bytesToEncode.length)
-				numOfBitsToEncode = chunkBitSize;
-			else
-				numOfBitsToEncode = (bytesToEncode.length - currByte) * Byte.SIZE;
+			encodeBits(bits);
 
-			byte[] bitsToEncode = new byte[numOfBitsToEncode];
-
-			for (; currByte < bytesToEncode.length && currBitPos < bitsToEncode.length; currByte++) {
-				byte[] bits = BitByteConv.intToBitArray(bytesToEncode[currByte], Byte.SIZE);
-				System.arraycopy(bits, 0, bitsToEncode, currBitPos, Byte.SIZE);
-				currBitPos += Byte.SIZE;
-			}
-
-			encodeBits(bitsToEncode);
+			bytesSize -= bytesPerThread;
 		}
 	}
 

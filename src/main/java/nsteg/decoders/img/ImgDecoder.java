@@ -1,6 +1,8 @@
 package nsteg.decoders.img;
 
 import nsteg.decoders.Decoder;
+import nsteg.encoders.img.ImgEncoder;
+import nsteg.encoders.img.ImgEndState;
 import nsteg.nsteg_utils.BitByteConv;
 
 import javax.validation.constraints.NotNull;
@@ -26,15 +28,20 @@ import java.util.ArrayDeque;
  * @see nsteg.encoders.Encoder
  */
 public class ImgDecoder extends Decoder {
+	private ImgDecoderThread[] decThreads = new ImgDecoderThread[Runtime.getRuntime().availableProcessors()];
+
 	private BufferedImage img; // Image to read (A)RGB data from and to write (A)RGB modified data to
 	private int x = 0, y = 0; // Pixel coords
 	private int width, height; // Img dims
 
 	private int bitsPerChannel = 1; // Number of LSBs to use in each channel for encoding purposes
 	private final int numOfChannels;
+	private int currByte = 0;
 
 	// Bits read from pixels are loaded to the buffer, for temporary storage, until the requested amount of them have been read
 	private ArrayDeque<Byte> buffer = new ArrayDeque<>();
+
+	private long totTime = 0;
 
 	/**
 	 * Initializes an ImgDecoder instance with the given image, determines the number of channels in the image, and
@@ -53,8 +60,8 @@ public class ImgDecoder extends Decoder {
 		 * if the image is of ARGB type, or the first two pixels, if the image is of type RGB, since this value is
 		 * encoded using only one LSB.
 		 */
-		bitsPerChannel = BitByteConv.bitArrayToInt(readBits(4), false);
-		buffer.clear();
+
+		initThreads();
 	}
 
 	/**
@@ -70,8 +77,10 @@ public class ImgDecoder extends Decoder {
 	public byte[] readBits(int bitsToRead) {
 		for (; y < height; y++) {
 			for (; x < width; ) {
+//				long start = System.currentTimeMillis();
 				while (buffer.size() < bitsToRead && x < width)
 					extractDataFromPixel(img.getRGB(x++, y));
+//				totTime += (System.currentTimeMillis() - start);
 
 				if (buffer.size() >= bitsToRead)
 					return loadFromBuffer(bitsToRead);
@@ -92,8 +101,31 @@ public class ImgDecoder extends Decoder {
 	public byte[] readBytes(int bytesToRead) {
 		byte[] extractedBytes = new byte[bytesToRead];
 
-		for (int i = 0; i < bytesToRead; i++)
-			extractedBytes[i] = (byte) BitByteConv.bitArrayToInt(readBits(Byte.SIZE), true);
+//		for (int i = 0; i < bytesToRead; i++)
+//			extractedBytes[i] = (byte) BitByteConv.bitArrayToInt(readBits(Byte.SIZE), true);
+
+//		System.out.println(totTime);
+
+		currByte = 0;
+		int remainingBytes = bytesToRead;
+		int approxBytesPerThread = bytesToRead / decThreads.length + 1;
+		for (int t = 0; t < decThreads.length; t++) {
+			approxBytesPerThread = approxBytesPerThread < remainingBytes ? approxBytesPerThread : remainingBytes;
+			ImgEndState endState = decThreads[t].submitJob(extractedBytes, buffer, x, y, approxBytesPerThread, currByte);
+			currByte += approxBytesPerThread;
+			x = endState.endX;
+			y = endState.endY;
+
+			if (endState.endLSB > 0) {
+				extractDataFromPixel(img.getRGB(x, y));
+				while (buffer.size() > endState.endLSB)
+					buffer.removeFirst();
+			}
+
+			remainingBytes -= approxBytesPerThread;
+		}
+
+		stopThreads();
 
 		return extractedBytes;
 	}
@@ -110,6 +142,32 @@ public class ImgDecoder extends Decoder {
 			bits[i] = buffer.pop();
 
 		return bits;
+	}
+
+	private void initThreads() {
+		for (int t = 0; t < decThreads.length; t++) {
+			decThreads[t] = new ImgDecoderThread(img, numOfChannels);
+			decThreads[t].start();
+		}
+
+		bitsPerChannel = BitByteConv.bitArrayToInt(readBits(4), false);
+		buffer.clear();
+		ImgDecoderThread.setBitsPerChannel(bitsPerChannel);
+	}
+
+	public void stopThreads() {
+		for (int t = 0; t < decThreads.length; ) {
+			if (!decThreads[t].isActive()) {
+				decThreads[t].stopRunning();
+				try {
+					decThreads[t].join();
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+				t++;
+			} else
+				ImgEncoder.sleep(1);
+		}
 	}
 
 	/**

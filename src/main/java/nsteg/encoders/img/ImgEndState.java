@@ -7,5 +7,5 @@ package nsteg.encoders.img;
  * @see ImgEncoder
  */
 public class ImgEndState {
-	int endX, endY, endLSB, endNextChanToWrite;
+	public int endX, endY, endLSB, endChan;
 }

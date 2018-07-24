@@ -120,7 +120,7 @@ public class ImgEncoderThread extends Thread {
 		imgEndState.endX = (sx + (bitsToWrite.length / (bitsPerChannel * numOfChannels))) % width;
 		imgEndState.endX += (sLSB + ((nextChanToWrite + (bitsToWrite.length % (bitsPerChannel * numOfChannels))) / numOfChannels)) / bitsPerChannel;
 		imgEndState.endY = sy + ((sx + (bitsToWrite.length / (bitsPerChannel * numOfChannels))) / width);
-		imgEndState.endNextChanToWrite = (nextChanToWrite + bitsToWrite.length) % numOfChannels;
+		imgEndState.endChan = (nextChanToWrite + bitsToWrite.length) % numOfChannels;
 		imgEndState.endLSB = (sLSB + ((nextChanToWrite + (bitsToWrite.length % (bitsPerChannel * numOfChannels))) / numOfChannels)) % bitsPerChannel;
 
 		return imgEndState;
