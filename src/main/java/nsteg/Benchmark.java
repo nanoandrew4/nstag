@@ -51,7 +51,7 @@ public class Benchmark {
 			ie.encodeBits(dataSizeBits);
 
 			byte[] dataToEncode = new byte[1 << 22]; // 4 MiB of random data
-			Random rand = new Random();
+			Random rand = new Random(0);
 			rand.nextBytes(dataToEncode);
 
 			long start = System.currentTimeMillis();
@@ -84,7 +84,7 @@ public class Benchmark {
 		System.out.println("-------------------------------------------------------------------------------------------");
 
 		byte[] audData = new byte[1 << 27]; // Use 134 MB of random noise, in order to fit all bpc iterations
-		Random rand = new Random();
+		Random rand = new Random(0);
 		rand.nextBytes(audData);
 
 		AudioFormat af = new AudioFormat(44100, 16, 2, true, false);

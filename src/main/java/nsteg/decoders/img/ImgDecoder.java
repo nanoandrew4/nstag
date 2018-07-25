@@ -36,7 +36,6 @@ public class ImgDecoder extends Decoder {
 
 	private int bitsPerChannel = 1; // Number of LSBs to use in each channel for encoding purposes
 	private final int numOfChannels;
-	private int currByte = 0;
 
 	// Bits read from pixels are loaded to the buffer, for temporary storage, until the requested amount of them have been read
 	private ArrayDeque<Byte> buffer = new ArrayDeque<>();
@@ -106,9 +105,10 @@ public class ImgDecoder extends Decoder {
 
 //		System.out.println(totTime);
 
-		currByte = 0;
+		int currByte = 0;
 		int remainingBytes = bytesToRead;
 		int approxBytesPerThread = bytesToRead / decThreads.length + 1;
+		int bitsPerPixel = numOfChannels * bitsPerChannel;
 		for (int t = 0; t < decThreads.length; t++) {
 			approxBytesPerThread = approxBytesPerThread < remainingBytes ? approxBytesPerThread : remainingBytes;
 			ImgEndState endState = decThreads[t].submitJob(extractedBytes, buffer, x, y, approxBytesPerThread, currByte);
@@ -118,9 +118,13 @@ public class ImgDecoder extends Decoder {
 
 			if (endState.endLSB > 0) {
 				extractDataFromPixel(img.getRGB(x, y));
-				while (buffer.size() > endState.endLSB)
+//				System.out.println(buffer);
+				while (buffer.size() > bitsPerPixel - endState.endLSB)
 					buffer.removeFirst();
+				x++;
 			}
+
+//			x++;
 
 			remainingBytes -= approxBytesPerThread;
 		}

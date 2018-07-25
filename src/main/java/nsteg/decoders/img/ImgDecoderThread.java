@@ -80,14 +80,21 @@ public class ImgDecoderThread extends Thread {
 		this.currByte = byteStartPos;
 		this.endByte = currByte + bytesToRead;
 
+//		System.out.println("Sx: " + sx);
+//		System.out.println("Sy: " + sy);
+
 		int bitsPerPixel = numOfChannels * bitsPerChannel;
-		int bitsToRead = bytesToRead * Byte.SIZE;
+		int bitsToRead = bytesToRead * Byte.SIZE - this.buffer.size();
 		imgEndState.endX = (sx + (bitsToRead / bitsPerPixel)) % width;
 		imgEndState.endY = sy + (sx + (bitsToRead / bitsPerPixel)) / width;
-		imgEndState.endLSB = (this.buffer.size() + bitsToRead) % bitsPerPixel;
+		imgEndState.endLSB = bitsToRead % bitsPerPixel;
 
-//		System.out.println(currByte + " eLSB: " + imgEndState.endLSB);
-		System.out.println("Init buff size: " + this.buffer.size());
+//		System.out.println(this.buffer);
+//		System.out.println("EndX: " + imgEndState.endX);
+//		System.out.println("EndY: " + imgEndState.endY);
+//		System.out.println("eLSB: " + imgEndState.endLSB);
+//		System.out.println("Init buff size: " + this.buffer.size());
+//		System.out.println();
 
 		active = true;
 		return imgEndState;
@@ -104,10 +111,15 @@ public class ImgDecoderThread extends Thread {
 
 						while (buffer.size() >= Byte.SIZE && currByte < endByte)
 							fileBytes[currByte++] = (byte) BitByteConv.bitArrayToInt(loadFromBuffer(Byte.SIZE), true);
+
+//						if (currByte == endByte) {
+//							System.out.println("End: " + (x - (imgEndState.endLSB == 0 ? 0 : 1)) + ", " + y);
+//							System.out.println("Leftover: " + buffer.size());
+//						}
+
 					}
 					sx = 0;
 				}
-//				System.out.println(currByte + " Leftover: " + buffer.size());
 
 				buffer.clear();
 				active = false;

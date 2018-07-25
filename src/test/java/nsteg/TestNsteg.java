@@ -28,6 +28,19 @@ public class TestNsteg {
 		return data;
 	}
 
+	private void displayVisComp(byte[] arr1, byte[] arr2, int sPos, int ePos) {
+		for (int i = 0; i < 2; i++) {
+			byte[] arr = i == 0 ? arr1 : arr2;
+			for (int p = sPos; p < ePos; p++) {
+				byte[] bits = BitByteConv.intToBitArray(arr[p], Byte.SIZE);
+				for (byte b : bits)
+					System.out.print(b);
+				System.out.print(" ");
+			}
+			System.out.println();
+		}
+	}
+
 	@Test
 	public void testImgEncDec() {
 		for (int i = 0; i < 2; i++) {
@@ -47,6 +60,8 @@ public class TestNsteg {
 
 				byte[] decData = id.readBytes(bytesToRead);
 
+//				displayVisComp(data, decData, 2047, 2052);
+
 				assertArrayEquals(data, decData);
 
 				System.out.println("Passed bpc " + bpc + " for " + (imgType == BufferedImage.TYPE_4BYTE_ABGR ? "A" : "") + "RGB encoding/decoding");
@@ -57,7 +72,7 @@ public class TestNsteg {
 
 	@Test
 	public void testAudEncDec() {
-		byte[] audData = genRandData(1 << 18); // 262 kb, enough for all bpc to not run out of space in aud file
+		byte[] audData = genRandData(1 << 18); // 262 KiB, enough for all bpc to not run out of space in aud file
 		AudioFormat af = new AudioFormat(44100, 16, 2, true, false);
 
 		for (int bpc = 1; bpc < 9; bpc++) {
