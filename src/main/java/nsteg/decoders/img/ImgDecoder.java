@@ -34,13 +34,12 @@ public class ImgDecoder extends Decoder {
 	private int x = 0, y = 0; // Pixel coords
 	private int width, height; // Img dims
 
-	private int bitsPerChannel = 1; // Number of LSBs to use in each channel for encoding purposes
-	private final int numOfChannels;
+	private static int bitsPerChannel; // Number of LSBs to use in each channel for encoding purposes
+	private static int numOfChannels;
 
+	// TODO: EXTEND
 	// Bits read from pixels are loaded to the buffer, for temporary storage, until the requested amount of them have been read
 	private ArrayDeque<Byte> buffer = new ArrayDeque<>();
-
-	private long totTime = 0;
 
 	/**
 	 * Initializes an ImgDecoder instance with the given image, determines the number of channels in the image, and
@@ -50,115 +49,41 @@ public class ImgDecoder extends Decoder {
 	 */
 	public ImgDecoder(@NotNull BufferedImage encImg) {
 		img = encImg;
+		bitsPerChannel = 1;
 		numOfChannels = img.getColorModel().hasAlpha() ? 4 : 3;
 		width = img.getWidth();
 		height = img.getHeight();
-
-		/*
-		 * Read the number of LSBs that were used when encoding data to this image. Values are read from the first pixel
-		 * if the image is of ARGB type, or the first two pixels, if the image is of type RGB, since this value is
-		 * encoded using only one LSB.
-		 */
 
 		initThreads();
 	}
 
 	/**
-	 * Decodes bits from the image, until there are enough in the buffer to return the requested number of bits.
-	 * <p>
-	 * Reads one pixel at a time, and adds all the decoded bits to the buffer, until the buffer has enough bits
-	 * to return them. Any excess bits read will stay in the buffer, as they may belong to the next block of bits, if
-	 * there is a next block.
+	 * Initializes the threads used for decoding the file from the image. Must be called in the constructor of the class,
+	 * otherwise program will crash when it reaches the encodeBytes() method.
 	 *
-	 * @param bitsToRead Desired number of bits to decode and return
-	 * @return Array of bits with requested number of bits
+	 * Also reads in the number of bits per channel that were used during encoding, which are necessary for initializing
+	 * the threads.
 	 */
-	public byte[] readBits(int bitsToRead) {
-		for (; y < height; y++) {
-			for (; x < width; ) {
-//				long start = System.currentTimeMillis();
-				while (buffer.size() < bitsToRead && x < width)
-					extractDataFromPixel(img.getRGB(x++, y));
-//				totTime += (System.currentTimeMillis() - start);
-
-				if (buffer.size() >= bitsToRead)
-					return loadFromBuffer(bitsToRead);
-			}
-			x = 0;
-		}
-
-		System.err.println("No more bits to read...");
-		return null;
-	}
-
-	/**
-	 * Reads bytes from the image, and returns them as a byte array. Uses readBits(byte[] bitsToRead) internally.
-	 *
-	 * @param bytesToRead Number of bytes to decode from the image
-	 * @return Array of decoded bytes
-	 */
-	public byte[] readBytes(int bytesToRead) {
-		byte[] extractedBytes = new byte[bytesToRead];
-
-//		for (int i = 0; i < bytesToRead; i++)
-//			extractedBytes[i] = (byte) BitByteConv.bitArrayToInt(readBits(Byte.SIZE), true);
-
-//		System.out.println(totTime);
-
-		int currByte = 0;
-		int remainingBytes = bytesToRead;
-		int approxBytesPerThread = bytesToRead / decThreads.length + 1;
-		int bitsPerPixel = numOfChannels * bitsPerChannel;
-		for (int t = 0; t < decThreads.length; t++) {
-			approxBytesPerThread = approxBytesPerThread < remainingBytes ? approxBytesPerThread : remainingBytes;
-			ImgEndState endState = decThreads[t].submitJob(extractedBytes, buffer, x, y, approxBytesPerThread, currByte);
-			currByte += approxBytesPerThread;
-			x = endState.endX;
-			y = endState.endY;
-
-			if (endState.endLSB > 0) {
-				extractDataFromPixel(img.getRGB(x, y));
-//				System.out.println(buffer);
-				while (buffer.size() > bitsPerPixel - endState.endLSB)
-					buffer.removeFirst();
-				x++;
-			}
-
-//			x++;
-
-			remainingBytes -= approxBytesPerThread;
-		}
-
-		stopThreads();
-
-		return extractedBytes;
-	}
-
-	/**
-	 * Loads a specified number of bits from the buffer into an array.
-	 *
-	 * @param bitsToRead Number of bits to load from the buffer to the array
-	 * @return Array of bits of specified dimensions
-	 */
-	private byte[] loadFromBuffer(int bitsToRead) {
-		byte[] bits = new byte[bitsToRead];
-		for (int i = 0; i < bitsToRead; i++)
-			bits[i] = buffer.pop();
-
-		return bits;
-	}
-
 	private void initThreads() {
 		for (int t = 0; t < decThreads.length; t++) {
 			decThreads[t] = new ImgDecoderThread(img, numOfChannels);
 			decThreads[t].start();
 		}
 
+		/*
+		 * Read the number of LSBs that were used when encoding data to this image. Values are read from the first pixel
+		 * if the image is of ARGB type, or the first two pixels, if the image is of type RGB, since this value is
+		 * encoded using only one LSB.
+		 */
 		bitsPerChannel = BitByteConv.bitArrayToInt(readBits(4), false);
 		buffer.clear();
 		ImgDecoderThread.setBitsPerChannel(bitsPerChannel);
 	}
 
+	/**
+	 * Stops the threads, should only be used when all bytes have been read in.
+	 * TODO, PUT IN ABSTRACT CLASS
+	 */
 	public void stopThreads() {
 		for (int t = 0; t < decThreads.length; ) {
 			if (!decThreads[t].isActive()) {
@@ -175,13 +100,101 @@ public class ImgDecoder extends Decoder {
 	}
 
 	/**
+	 * Decodes bits from the image, until there are enough in the buffer to return the requested number of bits.
+	 * <p>
+	 * Reads one pixel at a time, and adds all the decoded bits to the buffer, until the buffer has enough bits
+	 * to return them. Any excess bits read will stay in the buffer, as they may belong to the next block of bits, if
+	 * there is a next block.
+	 *
+	 * @param bitsToRead Desired number of bits to decode and return
+	 * @return Array of bits with requested number of bits
+	 */
+	public byte[] readBits(int bitsToRead) {
+		for (; y < height; y++) {
+			for (; x < width; ) {
+				while (buffer.size() < bitsToRead && x < width)
+					extractDataFromPixel(buffer, img.getRGB(x++, y));
+
+				if (buffer.size() >= bitsToRead)
+					return loadFromBuffer(buffer, bitsToRead);
+			}
+			x = 0;
+		}
+
+		System.err.println("No more bits to read...");
+		return null;
+	}
+
+	/**
+	 * Reads bytes from the image, and returns them as a byte array. This method will utilize ImgDecoderThread in order
+	 * to rapidly decode the file from the image. An array of the size of size 'bytesToRead' is created, and each thread
+	 * is told where to write to in the array, in order to assemble the file properly. The threads return where they
+	 * will finish encoding, which aids in being able to tell the next thread where to start, as well as loading the bits
+	 * from a pixel that the previous thread did not use into a buffer, so that the next thread can use them.
+	 * TODO: REVIEW BEFORE RELEASE
+	 *
+	 * @param bytesToRead Number of bytes to decode from the image
+	 * @return Array of decoded bytes
+	 */
+	public byte[] readBytes(int bytesToRead) {
+		byte[] extractedBytes = new byte[bytesToRead];
+
+		int currByte = 0;
+		int remainingBytes = bytesToRead;
+		int approxBytesPerThread = bytesToRead / decThreads.length + 1;
+		for (ImgDecoderThread decThread : decThreads) {
+			// Number of bytes that the thread should write to the file byte array
+			approxBytesPerThread = approxBytesPerThread < remainingBytes ? approxBytesPerThread : remainingBytes;
+			// Information regarding where the thread will end the decoding job
+			ImgEndState endState = decThread.submitJob(extractedBytes, buffer, x, y, approxBytesPerThread, currByte);
+			currByte += approxBytesPerThread;
+			x = endState.endX;
+			y = endState.endY;
+
+			/*
+			 * Predicts which bits will be left over in the buffer after the thread finishes its decoding job, and
+			 * adds them to the empty buffer in this class in order to hand them to the next thread, so that no data is
+			 * lost. The last thread will load this array with extra bits, which do not belong to the file, so those
+			 * can be ignored
+			 */
+			if (endState.endLSB > 0) {
+				extractDataFromPixel(buffer, img.getRGB(x, y));
+				while (buffer.size() > (numOfChannels * bitsPerChannel) - endState.endLSB)
+					buffer.removeFirst();
+				x++;
+			}
+
+			remainingBytes -= approxBytesPerThread;
+		}
+
+		buffer.clear();
+		stopThreads();
+
+		return extractedBytes;
+	}
+
+	/**
+	 * Loads a specified number of bits from a buffer into an array.
+	 *
+	 * @param buffer Deque to read bits from
+	 * @param bitsToRead Number of bits to load from the buffer to the array
+	 * @return Array of bits of specified dimensions
+	 */
+	static byte[] loadFromBuffer(ArrayDeque<Byte> buffer, int bitsToRead) {
+		byte[] bits = new byte[bitsToRead];
+		for (int i = 0; i < bitsToRead; i++)
+			bits[i] = buffer.pop();
+
+		return bits;
+	}
+
+	/**
 	 * Retrieves bits from the file that was encoded in the image by reading and storing the least significant bit(s)
-	 * of each channel from the pixel (A)RGB value passed. The LSBs read are stored in the buffer, which is handled by
-	 * the calling method (readBits(int bitsToRead)).
+	 * of each channel from the pixel (A)RGB value passed. The LSBs read are stored in the specified ArrayDeque.
 	 *
 	 * @param orig 32-bit argb int representing the colors the values of the 4 color channels
 	 */
-	private void extractDataFromPixel(int orig) {
+	static void extractDataFromPixel(ArrayDeque<Byte> buffer, int orig) {
 		byte[] aBits = BitByteConv.intToBitArray((orig >> 24) & 0xff, Byte.SIZE); // Get alpha channel value
 		byte[] rBits = BitByteConv.intToBitArray((orig >> 16) & 0xff, Byte.SIZE); // Get red channel value
 		byte[] gBits = BitByteConv.intToBitArray((orig >> 8) & 0xff, Byte.SIZE); // Get green channel value

@@ -25,6 +25,12 @@ public class ImgDecoderThread extends Thread {
 	// Bits read from pixels are loaded to the buffer, for temporary storage, until the requested amount of them have been read
 	private ArrayDeque<Byte> buffer = new ArrayDeque<>();
 
+	/**
+	 * Number of bits to be read from the image before re-assembling them into bytes and writing them to the file byte
+	 * array. This is used to minimize the work done by the thread, at the expense of using more memory.
+	 */
+	private static final int BLOCK_SIZE = 1024;
+
 	ImgDecoderThread(@NotNull BufferedImage img, int numOfChannels) {
 		this.setDaemon(true);
 
@@ -60,7 +66,8 @@ public class ImgDecoderThread extends Thread {
 	 * returned containing where the encoding process this thread will carry out will end, so that ImgEncoder can
 	 * submit more jobs without having to wait for this one to finish.
 	 *
-	 * @param fileBytes
+	 * @param fileBytes Array to which to write the bytes extracted from the image. Array must be the size of the
+	 *                  original file, since each thread will write to the correct place.
 	 * @param sx        Starting 'x' coordinate in the image
 	 * @param sy        Starting 'y' coordinate in the image
 	 * @return ImgEndState instance containing ending positions of the starting values passed, so that jobs can quickly
@@ -75,26 +82,18 @@ public class ImgDecoderThread extends Thread {
 		this.fileBytes = fileBytes;
 		this.sx = sx;
 		this.sy = sy;
-		this.buffer.addAll(buffer);
-		buffer.clear();
 		this.currByte = byteStartPos;
 		this.endByte = currByte + bytesToRead;
 
-//		System.out.println("Sx: " + sx);
-//		System.out.println("Sy: " + sy);
+		// Add leftover bits from previous encoding and then clear the original buffer
+		this.buffer.addAll(buffer);
+		buffer.clear();
 
 		int bitsPerPixel = numOfChannels * bitsPerChannel;
 		int bitsToRead = bytesToRead * Byte.SIZE - this.buffer.size();
 		imgEndState.endX = (sx + (bitsToRead / bitsPerPixel)) % width;
 		imgEndState.endY = sy + (sx + (bitsToRead / bitsPerPixel)) / width;
 		imgEndState.endLSB = bitsToRead % bitsPerPixel;
-
-//		System.out.println(this.buffer);
-//		System.out.println("EndX: " + imgEndState.endX);
-//		System.out.println("EndY: " + imgEndState.endY);
-//		System.out.println("eLSB: " + imgEndState.endLSB);
-//		System.out.println("Init buff size: " + this.buffer.size());
-//		System.out.println();
 
 		active = true;
 		return imgEndState;
@@ -106,17 +105,13 @@ public class ImgDecoderThread extends Thread {
 			if (active) {
 				for (int y = sy; y < height && currByte < endByte; y++) {
 					for (int x = sx; x < width && currByte < endByte; ) {
-						while (buffer.size() < Byte.SIZE && x < width && currByte < endByte)
-							extractDataFromPixel(img.getRGB(x++, y));
+						// Read bits from the image
+						while (buffer.size() < BLOCK_SIZE && x < width)
+							ImgDecoder.extractDataFromPixel(buffer, img.getRGB(x++, y));
 
+						// Assemble read bits into bytes and write them to the file byte array
 						while (buffer.size() >= Byte.SIZE && currByte < endByte)
-							fileBytes[currByte++] = (byte) BitByteConv.bitArrayToInt(loadFromBuffer(Byte.SIZE), true);
-
-//						if (currByte == endByte) {
-//							System.out.println("End: " + (x - (imgEndState.endLSB == 0 ? 0 : 1)) + ", " + y);
-//							System.out.println("Leftover: " + buffer.size());
-//						}
-
+							fileBytes[currByte++] = (byte) BitByteConv.bitArrayToInt(ImgDecoder.loadFromBuffer(buffer, Byte.SIZE), true);
 					}
 					sx = 0;
 				}
@@ -125,43 +120,6 @@ public class ImgDecoderThread extends Thread {
 				active = false;
 			} else
 				ImgEncoder.sleep(1);
-		}
-	}
-
-	/**
-	 * Loads a specified number of bits from the buffer into an array.
-	 *
-	 * @param bitsToRead Number of bits to load from the buffer to the array
-	 * @return Array of bits of specified dimensions
-	 */
-	private byte[] loadFromBuffer(int bitsToRead) {
-		byte[] bits = new byte[bitsToRead];
-		for (int i = 0; i < bitsToRead; i++)
-			bits[i] = buffer.pop();
-
-		return bits;
-	}
-
-	/**
-	 * Retrieves bits from the file that was encoded in the image by reading and storing the least significant bit(s)
-	 * of each channel from the pixel (A)RGB value passed. The LSBs read are stored in the buffer, which is handled by
-	 * the calling method (readBits(int bitsToRead)).
-	 *
-	 * @param orig 32-bit argb int representing the colors the values of the 4 color channels
-	 */
-	private void extractDataFromPixel(int orig) {
-		byte[] aBits = BitByteConv.intToBitArray((orig >> 24) & 0xff, Byte.SIZE); // Get alpha channel value
-		byte[] rBits = BitByteConv.intToBitArray((orig >> 16) & 0xff, Byte.SIZE); // Get red channel value
-		byte[] gBits = BitByteConv.intToBitArray((orig >> 8) & 0xff, Byte.SIZE); // Get green channel value
-		byte[] bBits = BitByteConv.intToBitArray(orig & 0xff, Byte.SIZE); // Get blue channel value
-
-		// Write least significant bit(s) from the color channels to the queue of bits to recover the encoded file
-		for (int lsb = 0; lsb < bitsPerChannel; lsb++) {
-			buffer.add(rBits[rBits.length - 1 - lsb]);
-			buffer.add(gBits[gBits.length - 1 - lsb]);
-			buffer.add(bBits[bBits.length - 1 - lsb]);
-			if (numOfChannels == 4)
-				buffer.add(aBits[aBits.length - 1 - lsb]);
 		}
 	}
 }
