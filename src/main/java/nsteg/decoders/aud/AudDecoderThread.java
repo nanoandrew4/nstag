@@ -49,9 +49,13 @@ public class AudDecoderThread extends Thread {
 		this.currLSB = currLSB;
 		this.endByte = currFileByte + bytesToRead;
 
-		int bitsToRead = bytesToRead * Byte.SIZE - (LSBsToUse - currLSB - 1);
+		int bitsToRead = (bytesToRead * Byte.SIZE);
+		if (currLSB > 0)
+			bitsToRead -= (LSBsToUse - (currLSB));
 		endState.endByte = currDecByte + 2 * (bitsToRead / LSBsToUse);
 		endState.endLSB = bitsToRead % LSBsToUse;
+		if (currLSB > 0)
+			endState.endByte += 2;
 
 		active = true;
 		return endState;
@@ -63,16 +67,23 @@ public class AudDecoderThread extends Thread {
 			if (active) {
 				int bitPos = 0;
 				byte[] fileBits = new byte[Byte.SIZE];
-				while (currFileByte < endByte) {
-					byte[] bits = BitByteConv.intToBitArray(pcm[currDecByte++], Byte.SIZE);
-					for (int i = currLSB; currLSB < LSBsToUse; currLSB++) {
-						if (bitPos >= Byte.SIZE) {
+				while (currFileByte < endByte && currDecByte < pcm.length) {
+					byte[] bits = BitByteConv.intToBitArray(pcm[currDecByte], Byte.SIZE);
+					for (; currLSB < LSBsToUse && currFileByte < endByte && currDecByte < pcm.length; currLSB++) {
+						if (bitPos == Byte.SIZE) {
 							fileBytes[currFileByte++] = (byte) BitByteConv.bitArrayToInt(fileBits, true);
-							bitPos %= Byte.SIZE;
+							bitPos = 0;
 						}
-						fileBits[bitPos++] = bits[bits.length - 1 - i];
+						fileBits[bitPos++] = bits[bits.length - 1 - currLSB];
+					}
+
+					if (currLSB == LSBsToUse) {
+						currLSB = 0;
+						currDecByte += 2;
 					}
 				}
+
+				active = false;
 			} else
 				AudioDecoder.sleep(1);
 		}

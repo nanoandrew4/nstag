@@ -1,6 +1,7 @@
 package nsteg.decoders.aud;
 
 import nsteg.decoders.Decoder;
+import nsteg.encoders.aud.AudEndState;
 import nsteg.encoders.aud.FLACData;
 import nsteg.nsteg_utils.BitByteConv;
 import nsteg.processors.AudioProcessor;
@@ -22,7 +23,7 @@ public class AudioDecoder extends Decoder {
 
 	private byte[] encodedBytes; // Holds the PCM data of the audio file
 
-	private int currLSB = 0, currByte = 0;
+	private int currLSB = 0, currDecByte = 0;
 
 	// Number of least significant bits to read from each byte of PCM data
 	private int LSBsToUse = 1;
@@ -70,7 +71,7 @@ public class AudioDecoder extends Decoder {
 			decThreads[t].start();
 		}
 
-		LSBsToUse = BitByteConv.bitArrayToInt(readBits(LSB_BITS_COUNT), false)
+		LSBsToUse = BitByteConv.bitArrayToInt(readBits(LSB_BITS_COUNT), false);
 		AudDecoderThread.setLSBsToUse(LSBsToUse);
 	}
 
@@ -108,8 +109,8 @@ public class AudioDecoder extends Decoder {
 		int bitPos = 0;
 
 		// Cycle through the decoded bytes, until enough bits have been gathered, or there are no more bytes to read from
-		for (; currByte < encodedBytes.length && bitPos < bitsToRead; ) {
-			byte[] byteBits = BitByteConv.intToBitArray(encodedBytes[currByte], Byte.SIZE);
+		for (; currDecByte < encodedBytes.length && bitPos < bitsToRead; ) {
+			byte[] byteBits = BitByteConv.intToBitArray(encodedBytes[currDecByte], Byte.SIZE);
 
 			// Read the least significant bits until enough have been read, or no more left to read in current byte
 			for (; currLSB < LSBsToUse && bitPos < bitsToRead; currLSB++)
@@ -122,7 +123,7 @@ public class AudioDecoder extends Decoder {
 			 */
 			if (currLSB == LSBsToUse) {
 				currLSB = 0;
-				currByte += 2;
+				currDecByte += 2;
 			}
 		}
 
@@ -136,11 +137,26 @@ public class AudioDecoder extends Decoder {
 	 * @return Array containing the decoded bytes, with the specified length
 	 */
 	public byte[] readBytes(int bytesToRead) {
-		byte[] bytes = new byte[bytesToRead];
+		byte[] fileBytes = new byte[bytesToRead];
 
-		for (int i = 0; i < bytesToRead; i++)
-			bytes[i] = (byte) BitByteConv.bitArrayToInt(readBits(Byte.SIZE), true);
+		int currFileByte = 0;
+		int remainingBytes = bytesToRead;
+		int approxBytesPerThread = bytesToRead / decThreads.length + 1;
+		for (AudDecoderThread decThread : decThreads) {
+			// Number of bytes that the thread should write to the file byte array
+			approxBytesPerThread = approxBytesPerThread < remainingBytes ? approxBytesPerThread : remainingBytes;
+			
+			// Information regarding where the thread will end the decoding job
+			AudEndState endState = decThread.submitJob(fileBytes, currDecByte, currFileByte, currLSB, approxBytesPerThread);
+			currFileByte += approxBytesPerThread;
+			currDecByte = endState.endByte;
+			currLSB = endState.endLSB;
 
-		return bytes;
+			remainingBytes -= approxBytesPerThread;
+		}
+
+		stopThreads();
+
+		return fileBytes;
 	}
 }
