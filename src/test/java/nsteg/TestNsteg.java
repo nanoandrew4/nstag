@@ -28,6 +28,14 @@ public class TestNsteg {
 		return data;
 	}
 
+	/**
+	 * Displays a visual comparison of two byte arrays at a bit level between a start point and an endpoint. Useful for
+	 * looking at file reassembly when debugging a failing encoder or decoder.
+	 * @param arr1 Array to be displayed first
+	 * @param arr2 Array to be displayed second
+	 * @param sPos Position to start converting bytes to bits from, and displaying them
+	 * @param ePos Position to stop converting bytes to bits and displaying them
+	 */
 	private void displayVisComp(byte[] arr1, byte[] arr2, int sPos, int ePos) {
 		for (int i = 0; i < 2; i++) {
 			byte[] arr = i == 0 ? arr1 : arr2;
@@ -59,8 +67,6 @@ public class TestNsteg {
 				int bytesToRead = BitByteConv.bitArrayToInt(fSizeBits, false);
 
 				byte[] decData = id.readBytes(bytesToRead);
-
-//				displayVisComp(data, decData, 2047, 2052);
 
 				assertArrayEquals(data, decData);
 

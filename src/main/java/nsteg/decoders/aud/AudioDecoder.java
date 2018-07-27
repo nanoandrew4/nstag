@@ -18,6 +18,8 @@ import java.io.IOException;
  * of an audio file.
  */
 public class AudioDecoder extends Decoder {
+	private AudDecoderThread[] decThreads = new AudDecoderThread[Runtime.getRuntime().availableProcessors()];
+
 	private byte[] encodedBytes; // Holds the PCM data of the audio file
 
 	private int currLSB = 0, currByte = 0;
@@ -47,7 +49,7 @@ public class AudioDecoder extends Decoder {
 			this.encodedBytes = AudioProcessor.loadAudioFile(decodedStream);
 		}
 
-		this.LSBsToUse = BitByteConv.bitArrayToInt(readBits(LSB_BITS_COUNT), false);
+		initThreads();
 	}
 
 	/**
@@ -59,7 +61,40 @@ public class AudioDecoder extends Decoder {
 	 */
 	public AudioDecoder(@NotNull AudioInputStream audioStream) {
 		this.encodedBytes = AudioProcessor.loadAudioFile(audioStream);
-		this.LSBsToUse = BitByteConv.bitArrayToInt(readBits(LSB_BITS_COUNT), false);
+		initThreads();
+	}
+
+	private void initThreads() {
+		for (int t = 0; t < decThreads.length; t++) {
+			decThreads[t] = new AudDecoderThread(encodedBytes);
+			decThreads[t].start();
+		}
+
+		LSBsToUse = BitByteConv.bitArrayToInt(readBits(LSB_BITS_COUNT), false)
+		AudDecoderThread.setLSBsToUse(LSBsToUse);
+	}
+
+	public void stopThreads() {
+		for (int t = 0; t < decThreads.length;) {
+			if (!decThreads[t].isActive()) {
+				decThreads[t].stopRunning();
+				try {
+					decThreads[t].join();
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+				t++;
+			} else
+				sleep(10);
+		}
+	}
+
+	static void sleep(long millis) {
+		try {
+			Thread.sleep(millis);
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
 	}
 
 	/**

@@ -153,7 +153,7 @@ public class ImgEncoder extends Encoder {
 				}
 				i++;
 			} else
-				sleep(1);
+				sleep(10);
 		}
 	}
 }

@@ -31,11 +31,10 @@ public class ImgDecoderThread extends Thread {
 	 */
 	private static final int BLOCK_SIZE = 1024;
 
-	ImgDecoderThread(@NotNull BufferedImage img, int numOfChannels) {
+	ImgDecoderThread(@NotNull BufferedImage img) {
 		this.setDaemon(true);
 
 		this.img = img;
-		ImgDecoderThread.numOfChannels = numOfChannels;
 
 		width = img.getWidth();
 		height = img.getHeight();
@@ -43,6 +42,10 @@ public class ImgDecoderThread extends Thread {
 
 	static void setBitsPerChannel(int bitsPerChannel) {
 		ImgDecoderThread.bitsPerChannel = bitsPerChannel;
+	}
+
+	static void setNumOfChannels(int numOfChannels) {
+		ImgDecoderThread.numOfChannels = numOfChannels;
 	}
 
 	/**
@@ -73,7 +76,7 @@ public class ImgDecoderThread extends Thread {
 	 * @return ImgEndState instance containing ending positions of the starting values passed, so that jobs can quickly
 	 * be submitted to other threads, without having to wait for this one to finish
 	 */
-	ImgEndState submitJob(@NotNull byte[] fileBytes, ArrayDeque<Byte> buffer, int sx, int sy, int bytesToRead, int byteStartPos) {
+	ImgEndState submitJob(@NotNull byte[] fileBytes, @NotNull ArrayDeque<Byte> buffer, int sx, int sy, int bytesToRead, int byteStartPos) {
 		if (active) {
 			System.err.println("Thread was busy while attempting to submit job!");
 			return null;
@@ -85,12 +88,13 @@ public class ImgDecoderThread extends Thread {
 		this.currByte = byteStartPos;
 		this.endByte = currByte + bytesToRead;
 
-		// Add leftover bits from previous encoding and then clear the original buffer
+		// Add leftover bits from previous decoding and then clear the original buffer
 		this.buffer.addAll(buffer);
 		buffer.clear();
 
 		int bitsPerPixel = numOfChannels * bitsPerChannel;
 		int bitsToRead = bytesToRead * Byte.SIZE - this.buffer.size();
+		// Determine where the decoding process will end, so that other threads can be started where this one leaves off
 		imgEndState.endX = (sx + (bitsToRead / bitsPerPixel)) % width;
 		imgEndState.endY = sy + (sx + (bitsToRead / bitsPerPixel)) / width;
 		imgEndState.endLSB = bitsToRead % bitsPerPixel;
@@ -116,6 +120,7 @@ public class ImgDecoderThread extends Thread {
 					sx = 0;
 				}
 
+				// Clear buffer in case there are leftovers and this thread is reused
 				buffer.clear();
 				active = false;
 			} else

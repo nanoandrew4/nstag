@@ -66,7 +66,7 @@ public class ImgDecoder extends Decoder {
 	 */
 	private void initThreads() {
 		for (int t = 0; t < decThreads.length; t++) {
-			decThreads[t] = new ImgDecoderThread(img, numOfChannels);
+			decThreads[t] = new ImgDecoderThread(img);
 			decThreads[t].start();
 		}
 
@@ -78,6 +78,7 @@ public class ImgDecoder extends Decoder {
 		bitsPerChannel = BitByteConv.bitArrayToInt(readBits(4), false);
 		buffer.clear();
 		ImgDecoderThread.setBitsPerChannel(bitsPerChannel);
+		ImgDecoderThread.setNumOfChannels(numOfChannels);
 	}
 
 	/**
@@ -180,7 +181,7 @@ public class ImgDecoder extends Decoder {
 	 * @param bitsToRead Number of bits to load from the buffer to the array
 	 * @return Array of bits of specified dimensions
 	 */
-	static byte[] loadFromBuffer(ArrayDeque<Byte> buffer, int bitsToRead) {
+	static byte[] loadFromBuffer(@NotNull ArrayDeque<Byte> buffer, int bitsToRead) {
 		byte[] bits = new byte[bitsToRead];
 		for (int i = 0; i < bitsToRead; i++)
 			bits[i] = buffer.pop();
@@ -194,7 +195,7 @@ public class ImgDecoder extends Decoder {
 	 *
 	 * @param orig 32-bit argb int representing the colors the values of the 4 color channels
 	 */
-	static void extractDataFromPixel(ArrayDeque<Byte> buffer, int orig) {
+	static void extractDataFromPixel(@NotNull ArrayDeque<Byte> buffer, int orig) {
 		byte[] aBits = BitByteConv.intToBitArray((orig >> 24) & 0xff, Byte.SIZE); // Get alpha channel value
 		byte[] rBits = BitByteConv.intToBitArray((orig >> 16) & 0xff, Byte.SIZE); // Get red channel value
 		byte[] gBits = BitByteConv.intToBitArray((orig >> 8) & 0xff, Byte.SIZE); // Get green channel value
