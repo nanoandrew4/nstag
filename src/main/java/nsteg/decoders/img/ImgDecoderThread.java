@@ -3,24 +3,14 @@ package nsteg.decoders.img;
 import nsteg.encoders.img.ImgEncoder;
 import nsteg.encoders.img.ImgEndState;
 import nsteg.nsteg_utils.BitByteConv;
+import nsteg.threads.ImgThread;
 
 import javax.validation.constraints.NotNull;
 import java.awt.image.BufferedImage;
 import java.util.ArrayDeque;
 
-public class ImgDecoderThread extends Thread {
-	// Each thread has its own instance, so it can load values and return them to ImgEncoder, so it can continue submitting jobs
-	private ImgEndState imgEndState = new ImgEndState();
-
-	private BufferedImage img;
-	private boolean running = true; // False will cause the thread to exit
-	private boolean active = false; // Whether the thread is currently encoding information or is waiting for a job
-
-	private int width, height;
-
+public class ImgDecoderThread extends ImgThread {
 	private byte[] fileBytes;
-	private static int bitsPerChannel, numOfChannels;
-	private int sx, sy, currByte, endByte;
 
 	// Bits read from pixels are loaded to the buffer, for temporary storage, until the requested amount of them have been read
 	private ArrayDeque<Byte> buffer = new ArrayDeque<>();
@@ -31,37 +21,8 @@ public class ImgDecoderThread extends Thread {
 	 */
 	private static final int BLOCK_SIZE = 1024;
 
-	ImgDecoderThread(@NotNull BufferedImage img) {
-		this.setDaemon(true);
-
-		this.img = img;
-
-		width = img.getWidth();
-		height = img.getHeight();
-	}
-
-	static void setBitsPerChannel(int bitsPerChannel) {
-		ImgDecoderThread.bitsPerChannel = bitsPerChannel;
-	}
-
-	static void setNumOfChannels(int numOfChannels) {
-		ImgDecoderThread.numOfChannels = numOfChannels;
-	}
-
-	/**
-	 * Ends loop in the run() method, effectively terminating the thread.
-	 */
-	void stopRunning() {
-		running = false;
-	}
-
-	/**
-	 * Returns whether this thread is busy encoding bits to the image.
-	 *
-	 * @return True if it is encoding data, false if it is available to encode data
-	 */
-	boolean isActive() {
-		return active;
+	ImgDecoderThread(@NotNull BufferedImage img, int numOfChannels) {
+		super(img, numOfChannels);
 	}
 
 	/**
@@ -92,15 +53,15 @@ public class ImgDecoderThread extends Thread {
 		this.buffer.addAll(buffer);
 		buffer.clear();
 
-		int bitsPerPixel = numOfChannels * bitsPerChannel;
+		int bitsPerPixel = numOfChannels * LSBsToUse;
 		int bitsToRead = bytesToRead * Byte.SIZE - this.buffer.size();
 		// Determine where the decoding process will end, so that other threads can be started where this one leaves off
-		imgEndState.endX = (sx + (bitsToRead / bitsPerPixel)) % width;
-		imgEndState.endY = sy + (sx + (bitsToRead / bitsPerPixel)) / width;
-		imgEndState.endLSB = bitsToRead % bitsPerPixel;
+		endState.endX = (sx + (bitsToRead / bitsPerPixel)) % width;
+		endState.endY = sy + (sx + (bitsToRead / bitsPerPixel)) / width;
+		endState.endLSB = bitsToRead % bitsPerPixel;
 
 		active = true;
-		return imgEndState;
+		return endState;
 	}
 
 	@Override

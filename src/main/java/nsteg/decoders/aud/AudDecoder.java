@@ -15,10 +15,10 @@ import java.io.File;
 import java.io.IOException;
 
 /**
- * This class is responsible for decoding data that was previously encoded using the AudioEncoder from the PCM data
+ * This class is responsible for decoding data that was previously encoded using the AudEncoder from the PCM data
  * of an audio file.
  */
-public class AudioDecoder extends Decoder {
+public class AudDecoder extends Decoder {
 	private AudDecoderThread[] decThreads = new AudDecoderThread[Runtime.getRuntime().availableProcessors()];
 
 	private byte[] encodedBytes; // Holds the PCM data of the audio file
@@ -29,12 +29,12 @@ public class AudioDecoder extends Decoder {
 	private int LSBsToUse = 1;
 
 	/**
-	 * Creates a new instance of AudioDecoder, which loads the audio file to a PCM byte array. The number of least
+	 * Creates a new instance of AudDecoder, which loads the audio file to a PCM byte array. The number of least
 	 * significant bits used during encoding is also read. Once this constructor is done, the decoder is ready to decode.
 	 *
 	 * @param audioFileName Name of the audio file to decode the PCM byte array from
 	 */
-	public AudioDecoder(@NotNull String audioFileName) {
+	public AudDecoder(@NotNull String audioFileName) {
 		if (audioFileName.endsWith("flac")) {
 			FLACData data = AudioProcessor.loadFLACFile(audioFileName);
 			this.encodedBytes = data.pcm;
@@ -60,7 +60,7 @@ public class AudioDecoder extends Decoder {
 	 *
 	 * @param audioStream Audio file stream, in PCM_SIGNED encoding
 	 */
-	public AudioDecoder(@NotNull AudioInputStream audioStream) {
+	public AudDecoder(@NotNull AudioInputStream audioStream) {
 		this.encodedBytes = AudioProcessor.loadAudioFile(audioStream);
 		initThreads();
 	}
@@ -72,30 +72,13 @@ public class AudioDecoder extends Decoder {
 		}
 
 		LSBsToUse = BitByteConv.bitArrayToInt(readBits(LSB_BITS_COUNT), false);
-		AudDecoderThread.setLSBsToUse(LSBsToUse);
+		for (AudDecoderThread t : decThreads)
+			t.setLSBsToUse(LSBsToUse);
 	}
 
+	@Override
 	public void stopThreads() {
-		for (int t = 0; t < decThreads.length;) {
-			if (!decThreads[t].isActive()) {
-				decThreads[t].stopRunning();
-				try {
-					decThreads[t].join();
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				}
-				t++;
-			} else
-				sleep(10);
-		}
-	}
-
-	static void sleep(long millis) {
-		try {
-			Thread.sleep(millis);
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
+		for (AudDecoderThread t : decThreads) t.stopThread();
 	}
 
 	/**
@@ -145,7 +128,7 @@ public class AudioDecoder extends Decoder {
 		for (AudDecoderThread decThread : decThreads) {
 			// Number of bytes that the thread should write to the file byte array
 			approxBytesPerThread = approxBytesPerThread < remainingBytes ? approxBytesPerThread : remainingBytes;
-			
+
 			// Information regarding where the thread will end the decoding job
 			AudEndState endState = decThread.submitJob(fileBytes, currDecByte, currFileByte, currLSB, approxBytesPerThread);
 			currFileByte += approxBytesPerThread;

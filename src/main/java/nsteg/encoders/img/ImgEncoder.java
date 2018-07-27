@@ -45,8 +45,6 @@ public class ImgEncoder extends Encoder {
 			x = 2;
 			currLSB = nextChanToWrite = 0;
 		}
-
-		ImgEncoderThread.setBitsPerChannel(bitsPerChannel);
 	}
 
 	// See abstract method declaration
@@ -131,12 +129,12 @@ public class ImgEncoder extends Encoder {
 			encThreads[i].start();
 		}
 
-		// Encode desired LSBs per channel using only LSB of first (or first and second, depending on number of channels) pixel(s)
-		ImgEncoderThread.setBitsPerChannel(1);
 		encodeBits(BitByteConv.intToBitArray(bitsPerChannel, 4));
-
 		while (encThreads[0].isActive())
 			sleep(2);
+
+		for (ImgEncoderThread t : encThreads)
+			t.setLSBsToUse(bitsPerChannel);
 	}
 
 	/**
@@ -144,16 +142,6 @@ public class ImgEncoder extends Encoder {
 	 * otherwise the encoding will not complete successfully.
 	 */
 	public void stopThreads() {
-		for (int i = 0; i < encThreads.length; ) {
-			if (!encThreads[i].isActive()) {
-				encThreads[i].stopRunning();
-				try {
-					encThreads[i].join();
-				} catch (InterruptedException ignored) {
-				}
-				i++;
-			} else
-				sleep(10);
-		}
+		for (ImgEncoderThread t : encThreads) t.stopThread();
 	}
 }

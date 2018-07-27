@@ -1,15 +1,14 @@
 package nsteg;
 
 import nsteg.decoders.Decoder;
-import nsteg.decoders.aud.AudioDecoder;
+import nsteg.decoders.aud.AudDecoder;
 import nsteg.decoders.img.ImgDecoder;
 import nsteg.encoders.Encoder;
-import nsteg.encoders.aud.AudioEncoder;
+import nsteg.encoders.aud.AudEncoder;
 import nsteg.encoders.img.ImgEncoder;
 import nsteg.nsteg_utils.BitByteConv;
 import org.junit.Test;
 
-import javax.sound.sampled.AudioFileFormat;
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
 import java.awt.image.BufferedImage;
@@ -85,7 +84,7 @@ public class TestNsteg {
 			AudioInputStream sampleAudio = new AudioInputStream(new ByteArrayInputStream(audData), af, audData.length);
 
 			byte[] data = genRandData(1 << 13); // 8KiB
-			Encoder ae = new AudioEncoder(sampleAudio, bpc);
+			Encoder ae = new AudEncoder(sampleAudio, bpc);
 			ae.encodeBits(BitByteConv.intToBitArray(data.length, 32));
 			ae.encodeBytes(data);
 			ae.stopThreads();
@@ -94,11 +93,12 @@ public class TestNsteg {
 					sampleAudio.getFormat().getChannels(), true, false
 			);
 
-			byte[] encData = ((AudioEncoder) ae).getEncodedPCM();
-			Decoder ad = new AudioDecoder(new AudioInputStream(new ByteArrayInputStream(encData), f, encData.length));
+			byte[] encData = ((AudEncoder) ae).getEncodedPCM();
+			Decoder ad = new AudDecoder(new AudioInputStream(new ByteArrayInputStream(encData), f, encData.length));
 
 			byte[] fSizeBits = ad.readBits(32);
 			byte[] decData = ad.readBytes(BitByteConv.bitArrayToInt(fSizeBits, false));
+			ad.stopThreads();
 
 			assertArrayEquals(data, decData);
 

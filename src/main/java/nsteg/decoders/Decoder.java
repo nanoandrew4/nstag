@@ -1,7 +1,7 @@
 package nsteg.decoders;
 
 import nsteg.Spinner;
-import nsteg.decoders.aud.AudioDecoder;
+import nsteg.decoders.aud.AudDecoder;
 import nsteg.decoders.img.ImgDecoder;
 import nsteg.encoders.Encoder;
 import nsteg.nsteg_utils.BitByteConv;
@@ -37,6 +37,8 @@ public abstract class Decoder {
 	// Impl specific
 	public abstract byte[] readBytes(int bytesToRead);
 
+	public abstract void stopThreads();
+
 	/**
 	 * Given a filename, returns the decoder that is able to decode data from the file by attempting to open it with
 	 * all available Decoder implementations, and returning whichever handled the file successfully.
@@ -57,7 +59,7 @@ public abstract class Decoder {
 			} catch (IOException ignored) {
 			}
 		} else if (Encoder.outAudFormats.contains(fileExt))
-			decoder = new AudioDecoder(encodedMediaFile); // Or MP3, but only relevant bit is it being FLAC
+			decoder = new AudDecoder(encodedMediaFile); // Or MP3, but only relevant bit is it being FLAC
 
 		Spinner.end();
 

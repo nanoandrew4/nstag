@@ -1,8 +1,8 @@
 package nsteg;
 
-import nsteg.decoders.aud.AudioDecoder;
+import nsteg.decoders.aud.AudDecoder;
 import nsteg.decoders.img.ImgDecoder;
-import nsteg.encoders.aud.AudioEncoder;
+import nsteg.encoders.aud.AudEncoder;
 import nsteg.encoders.img.ImgEncoder;
 
 import javax.sound.sampled.AudioFormat;
@@ -92,7 +92,7 @@ public class Benchmark {
 		for (int bpc = 1; bpc < 9; bpc++) {
 			AudioInputStream audioStream = new AudioInputStream(new ByteArrayInputStream(audData), af, audData.length);
 
-			AudioEncoder ae = new AudioEncoder(audioStream, bpc);
+			AudEncoder ae = new AudEncoder(audioStream, bpc);
 
 			byte[] dataSizeBits = new byte[32];
 			ae.encodeBits(dataSizeBits); // Size bits are encoded to simulate a real encoding process
@@ -110,7 +110,7 @@ public class Benchmark {
 
 			byte[] encData = ae.getEncodedPCM();
 
-			AudioDecoder ad = new AudioDecoder(new AudioInputStream(new ByteArrayInputStream(encData), af, encData.length));
+			AudDecoder ad = new AudDecoder(new AudioInputStream(new ByteArrayInputStream(encData), af, encData.length));
 			ad.readBits(dataSizeBits.length);
 			ad.readBits(dataSizeBits.length);
 

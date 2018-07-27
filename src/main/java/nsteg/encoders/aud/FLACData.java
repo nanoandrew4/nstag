@@ -1,7 +1,7 @@
 package nsteg.encoders.aud;
 
 /**
- * Used for returning data when reading FLAC files to the AudioEncoder class.
+ * Used for returning data when reading FLAC files to the AudEncoder class.
  *
  * @see nsteg.processors.AudioProcessor
  */

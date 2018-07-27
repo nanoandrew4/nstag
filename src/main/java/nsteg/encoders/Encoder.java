@@ -1,7 +1,7 @@
 package nsteg.encoders;
 
 import nsteg.Spinner;
-import nsteg.encoders.aud.AudioEncoder;
+import nsteg.encoders.aud.AudEncoder;
 import nsteg.encoders.img.ImgEncoder;
 import nsteg.nsteg_utils.BitByteConv;
 import nsteg.nsteg_utils.Compressor;
@@ -124,7 +124,7 @@ public abstract class Encoder {
 			} catch (IOException ignored) {
 			}
 		} else if (inAudFormats.contains(fileExt))
-			encoder = new AudioEncoder(file, LSBsToUse);
+			encoder = new AudEncoder(file, LSBsToUse);
 		else
 			System.err.println("File format not supported.");
 
@@ -196,8 +196,8 @@ public abstract class Encoder {
 
 		if (encoder instanceof ImgEncoder)
 			ImageProcessor.writeEncodedImageToDisk(((ImgEncoder) encoder).getImg(), outMediaName);
-		else if (encoder instanceof AudioEncoder)
-			AudioProcessor.writePCMToDisk(outMediaName, (AudioEncoder) encoder);
+		else if (encoder instanceof AudEncoder)
+			AudioProcessor.writePCMToDisk(outMediaName, (AudEncoder) encoder);
 
 		System.out.println("Done!\n");
 	}

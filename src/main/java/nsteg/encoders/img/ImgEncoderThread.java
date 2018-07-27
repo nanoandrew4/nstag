@@ -1,6 +1,7 @@
 package nsteg.encoders.img;
 
 import nsteg.nsteg_utils.BitByteConv;
+import nsteg.threads.ImgThread;
 
 import javax.validation.constraints.NotNull;
 import java.awt.image.BufferedImage;
@@ -11,48 +12,12 @@ import java.awt.image.BufferedImage;
  * where it will finish encoding the passed data, so that ImgEncoder can then assign more jobs to other instances of
  * this class.
  */
-public class ImgEncoderThread extends Thread {
-	// Each thread has its own instance, so it can load values and return them to ImgEncoder, so it can continue submitting jobs
-	private ImgEndState imgEndState = new ImgEndState();
-
-	private BufferedImage img;
-	private boolean running = true; // False will cause the thread to exit
-	private boolean active = false; // Whether the thread is currently encoding information or is waiting for a job
-
-	private int width, height;
-
+public class ImgEncoderThread extends ImgThread {
 	private byte[] bitsToWrite;
-	private static int bitsPerChannel, numOfChannels;
-	private int sx, sy, currLSB, nextChanToWrite, currBit;
+	private int currLSB,  nextChanToWrite, currBit;
 
 	ImgEncoderThread(@NotNull BufferedImage img, int numOfChannels) {
-		this.setDaemon(true);
-
-		this.img = img;
-		ImgEncoderThread.numOfChannels = numOfChannels;
-
-		width = img.getWidth();
-		height = img.getHeight();
-	}
-
-	static void setBitsPerChannel(int bitsPerChannel) {
-		ImgEncoderThread.bitsPerChannel = bitsPerChannel;
-	}
-
-	/**
-	 * Ends loop in the run() method, effectively terminating the thread.
-	 */
-	void stopRunning() {
-		running = false;
-	}
-
-	/**
-	 * Returns whether this thread is busy encoding bits to the image.
-	 *
-	 * @return True if it is encoding data, false if it is available to encode data
-	 */
-	boolean isActive() {
-		return active;
+		super(img, numOfChannels);
 	}
 
 	@Override
@@ -64,7 +29,7 @@ public class ImgEncoderThread extends Thread {
 						img.setRGB(x, y, insertDataToPixel(img.getRGB(x, y)));
 
 						// If all data has been read from the pixel, move to next one
-						if ((currLSB %= bitsPerChannel) == 0 && nextChanToWrite == 0)
+						if ((currLSB %= LSBsToUse) == 0 && nextChanToWrite == 0)
 							x++;
 					}
 					sx = 0;
@@ -76,7 +41,7 @@ public class ImgEncoderThread extends Thread {
 	}
 
 	/**
-	 * Submits a job for this thread to carry out. Initial encoding positions are given, and a ImgEndState instance is
+	 * Submits a job for this thread to carry out. Initial encoding positions are given, and a imgEndState instance is
 	 * returned containing where the encoding process this thread will carry out will end, so that ImgEncoder can
 	 * submit more jobs without having to wait for this one to finish.
 	 *
@@ -85,7 +50,7 @@ public class ImgEncoderThread extends Thread {
 	 * @param sy              Starting 'y' coordinate in the image
 	 * @param sLSB            Starting least significant bit position
 	 * @param nextChanToWrite First channel to write to
-	 * @return ImgEndState instance containing ending positions of the starting values passed, so that jobs can quickly
+	 * @return endState instance containing ending positions of the starting values passed, so that jobs can quickly
 	 * be submitted to other threads, without having to wait for this one to finish
 	 */
 	ImgEndState submitJob(@NotNull byte[] bitsToWrite, int sx, int sy, int sLSB, int nextChanToWrite) {
@@ -117,13 +82,13 @@ public class ImgEncoderThread extends Thread {
 		 * number of times that the available channels will be cycled through in order to encode the data, then adding
 		 * that to the initial starting LSB, and using the modulo operator to get the final LSB.
 		 */
-		imgEndState.endX = (sx + (bitsToWrite.length / (bitsPerChannel * numOfChannels))) % width;
-		imgEndState.endX += (sLSB + ((nextChanToWrite + (bitsToWrite.length % (bitsPerChannel * numOfChannels))) / numOfChannels)) / bitsPerChannel;
-		imgEndState.endY = sy + ((sx + (bitsToWrite.length / (bitsPerChannel * numOfChannels))) / width);
-		imgEndState.endChan = (nextChanToWrite + bitsToWrite.length) % numOfChannels;
-		imgEndState.endLSB = (sLSB + ((nextChanToWrite + (bitsToWrite.length % (bitsPerChannel * numOfChannels))) / numOfChannels)) % bitsPerChannel;
+		endState.endX = (sx + (bitsToWrite.length / (LSBsToUse * numOfChannels))) % width;
+		endState.endX += (sLSB + ((nextChanToWrite + (bitsToWrite.length % (LSBsToUse * numOfChannels))) / numOfChannels)) / LSBsToUse;
+		endState.endY = sy + ((sx + (bitsToWrite.length / (LSBsToUse * numOfChannels))) / width);
+		endState.endChan = (nextChanToWrite + bitsToWrite.length) % numOfChannels;
+		endState.endLSB = (sLSB + ((nextChanToWrite + (bitsToWrite.length % (LSBsToUse * numOfChannels))) / numOfChannels)) % LSBsToUse;
 
-		return imgEndState;
+		return endState;
 	}
 
 	/**
@@ -150,7 +115,7 @@ public class ImgEncoderThread extends Thread {
 		byte[] bBits = BitByteConv.intToBitArray(orig & 0xff, Byte.SIZE); // Get original blue bits
 
 		// Mod bit values, in order to encode bits from the buffer. Read method doc for more info
-		for (; currLSB < bitsPerChannel && currBit < bitsToWrite.length; ) {
+		for (; currLSB < LSBsToUse && currBit < bitsToWrite.length; ) {
 			if (nextChanToWrite == 0) {
 				rBits[rBits.length - 1 - currLSB] = bitsToWrite[currBit++];
 				nextChanToWrite = 1;

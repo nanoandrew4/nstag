@@ -2,62 +2,35 @@ package nsteg.decoders.aud;
 
 import nsteg.encoders.aud.AudEndState;
 import nsteg.nsteg_utils.BitByteConv;
+import nsteg.threads.AudThread;
 
 import javax.validation.constraints.NotNull;
 
-public class AudDecoderThread extends Thread {
-	private AudEndState endState = new AudEndState();
-	private byte[] pcm;
-
-	private boolean running = true;
-	private boolean active = false;
-
+public class AudDecoderThread extends AudThread {
 	private byte[] fileBytes;
-	private static int LSBsToUse;
-	private int currLSB, currDecByte, currFileByte, endByte;
+	private int currFileByte, endByte;
 
 	AudDecoderThread(@NotNull byte[] pcm) {
-		this.setDaemon(true);
-
-		this.pcm = pcm;
-	}
-
-	static void setLSBsToUse(int LSBsToUse) {
-		AudDecoderThread.LSBsToUse = LSBsToUse;
-	}
-
-	/**
-	 * Ends loop in the run() method, effectively terminating the thread.
-	 */
-	void stopRunning() {
-		running = false;
-	}
-
-	/**
-	 * Returns whether this thread is busy encoding bits to the image.
-	 *
-	 * @return True if it is encoding data, false if it is available to encode data
-	 */
-	boolean isActive() {
-		return active;
+		super(pcm);
 	}
 
 	AudEndState submitJob(@NotNull byte[] fileBytes, int currDecByte, int currFileByte, int currLSB, int bytesToRead) {
 		this.fileBytes = fileBytes;
-		this.currDecByte = currDecByte;
+		this.currPCMByte = currDecByte;
 		this.currFileByte = currFileByte;
 		this.currLSB = currLSB;
 		this.endByte = currFileByte + bytesToRead;
 
+		active = true;
+
 		int bitsToRead = (bytesToRead * Byte.SIZE);
 		if (currLSB > 0)
 			bitsToRead -= (LSBsToUse - (currLSB));
-		endState.endByte = currDecByte + 2 * (bitsToRead / LSBsToUse);
+		endState.endByte = currPCMByte + 2 * (bitsToRead / LSBsToUse);
 		endState.endLSB = bitsToRead % LSBsToUse;
 		if (currLSB > 0)
 			endState.endByte += 2;
 
-		active = true;
 		return endState;
 	}
 
@@ -67,9 +40,9 @@ public class AudDecoderThread extends Thread {
 			if (active) {
 				int bitPos = 0;
 				byte[] fileBits = new byte[Byte.SIZE];
-				while (currFileByte < endByte && currDecByte < pcm.length) {
-					byte[] bits = BitByteConv.intToBitArray(pcm[currDecByte], Byte.SIZE);
-					for (; currLSB < LSBsToUse && currFileByte < endByte && currDecByte < pcm.length; currLSB++) {
+				while (currFileByte < endByte && currPCMByte < pcm.length) {
+					byte[] bits = BitByteConv.intToBitArray(pcm[currPCMByte], Byte.SIZE);
+					for (; currLSB < LSBsToUse && currFileByte < endByte && currPCMByte < pcm.length; currLSB++) {
 						if (bitPos == Byte.SIZE) {
 							fileBytes[currFileByte++] = (byte) BitByteConv.bitArrayToInt(fileBits, true);
 							bitPos = 0;
@@ -79,13 +52,13 @@ public class AudDecoderThread extends Thread {
 
 					if (currLSB == LSBsToUse) {
 						currLSB = 0;
-						currDecByte += 2;
+						currPCMByte += 2;
 					}
 				}
 
 				active = false;
 			} else
-				AudioDecoder.sleep(1);
+				sleepMillis(5);
 		}
 	}
 }

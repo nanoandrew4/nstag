@@ -25,7 +25,7 @@ import java.io.IOException;
  * distortions to the sound, whereas the right channel is more generous with how much can be modified without it being
  * perceivable.
  */
-public class AudioEncoder extends Encoder {
+public class AudEncoder extends Encoder {
 	private AudEncoderThread[] encThreads = new AudEncoderThread[Runtime.getRuntime().availableProcessors()];
 
 	private byte[] audBytes; // PCM data of the audio file that is to be used to encode data
@@ -34,14 +34,14 @@ public class AudioEncoder extends Encoder {
 	private int channels, sampleRate, bitsPerSample; // Stored for writing to disk later
 
 	/**
-	 * Creates a new instance of AudioEncoder, which loads the requested file into a PCM byte array. Some metadata is also
+	 * Creates a new instance of AudEncoder, which loads the requested file into a PCM byte array. Some metadata is also
 	 * read from the audio file for later encoding, to ensure the sound quality is as consistent as can be.
 	 * Once this constructor is done, the encoder is ready to encode any data.
 	 *
 	 * @param audioFileName Name of the audio file that is to be used for encoding
 	 * @param LSBsToUse     Number of least significant bits to use in the right channel (left is untouched)
 	 */
-	public AudioEncoder(@NotNull String audioFileName, int LSBsToUse) {
+	public AudEncoder(@NotNull String audioFileName, int LSBsToUse) {
 		if (audioFileName.endsWith("flac")) {
 			FLACData data = AudioProcessor.loadFLACFile(audioFileName);
 			this.channels = data.channels;
@@ -72,7 +72,7 @@ public class AudioEncoder extends Encoder {
 	 * @param audioStream Audio file stream, in PCM_SIGNED encoding
 	 * @param LSBsToUse   Number of least significant bits to encode with
 	 */
-	public AudioEncoder(@NotNull AudioInputStream audioStream, int LSBsToUse) {
+	public AudEncoder(@NotNull AudioInputStream audioStream, int LSBsToUse) {
 		initWithStream(audioStream, LSBsToUse);
 	}
 
@@ -91,7 +91,7 @@ public class AudioEncoder extends Encoder {
 	}
 
 	/**
-	 * Returns the PCM byte array that this AudioEncoder instance is working on.
+	 * Returns the PCM byte array that this AudEncoder instance is working on.
 	 *
 	 * @return PCM byte array containing original PCM data, with any changes made by this class to the byte array
 	 */
@@ -203,29 +203,19 @@ public class AudioEncoder extends Encoder {
 			encThreads[i].start();
 		}
 
-		AudEncoderThread.setLSBToUse(1);
 		encodeBits(BitByteConv.intToBitArray(LSBsToUse, LSB_BITS_COUNT));
 		while (encThreads[0].isActive())
 			sleep(1);
-
-		AudEncoderThread.setLSBToUse(LSBsToUse);
+		for (AudEncoderThread t : encThreads)
+			t.setLSBsToUse(LSBsToUse);
 	}
 
 	/**
 	 * Stops all AudEncoderThread instances. Must be called once this ImgEncoder instance has finished writing data,
 	 * otherwise the encoding will not complete successfully.
 	 */
+	@Override
 	public void stopThreads() {
-		for (int i = 0; i < encThreads.length; ) {
-			if (!encThreads[i].isActive()) {
-				encThreads[i].stopRunning();
-				try {
-					encThreads[i].join();
-				} catch (InterruptedException ignored) {
-				}
-				i++;
-			} else
-				sleep(1);
-		}
+		for (AudEncoderThread encThread : encThreads) encThread.stopThread();
 	}
 }

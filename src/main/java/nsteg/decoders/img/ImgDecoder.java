@@ -34,7 +34,7 @@ public class ImgDecoder extends Decoder {
 	private int x = 0, y = 0; // Pixel coords
 	private int width, height; // Img dims
 
-	private static int bitsPerChannel; // Number of LSBs to use in each channel for encoding purposes
+	private static int LSBsToUse; // Number of LSBs to use in each channel for encoding purposes
 	private static int numOfChannels;
 
 	// TODO: EXTEND
@@ -49,7 +49,7 @@ public class ImgDecoder extends Decoder {
 	 */
 	public ImgDecoder(@NotNull BufferedImage encImg) {
 		img = encImg;
-		bitsPerChannel = 1;
+		LSBsToUse = 1;
 		numOfChannels = img.getColorModel().hasAlpha() ? 4 : 3;
 		width = img.getWidth();
 		height = img.getHeight();
@@ -60,13 +60,13 @@ public class ImgDecoder extends Decoder {
 	/**
 	 * Initializes the threads used for decoding the file from the image. Must be called in the constructor of the class,
 	 * otherwise program will crash when it reaches the encodeBytes() method.
-	 *
+	 * <p>
 	 * Also reads in the number of bits per channel that were used during encoding, which are necessary for initializing
 	 * the threads.
 	 */
 	private void initThreads() {
 		for (int t = 0; t < decThreads.length; t++) {
-			decThreads[t] = new ImgDecoderThread(img);
+			decThreads[t] = new ImgDecoderThread(img, numOfChannels);
 			decThreads[t].start();
 		}
 
@@ -75,10 +75,10 @@ public class ImgDecoder extends Decoder {
 		 * if the image is of ARGB type, or the first two pixels, if the image is of type RGB, since this value is
 		 * encoded using only one LSB.
 		 */
-		bitsPerChannel = BitByteConv.bitArrayToInt(readBits(4), false);
+		LSBsToUse = BitByteConv.bitArrayToInt(readBits(4), false);
 		buffer.clear();
-		ImgDecoderThread.setBitsPerChannel(bitsPerChannel);
-		ImgDecoderThread.setNumOfChannels(numOfChannels);
+		for (ImgDecoderThread t : decThreads)
+			t.setLSBsToUse(LSBsToUse);
 	}
 
 	/**
@@ -86,18 +86,7 @@ public class ImgDecoder extends Decoder {
 	 * TODO, PUT IN ABSTRACT CLASS
 	 */
 	public void stopThreads() {
-		for (int t = 0; t < decThreads.length; ) {
-			if (!decThreads[t].isActive()) {
-				decThreads[t].stopRunning();
-				try {
-					decThreads[t].join();
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				}
-				t++;
-			} else
-				ImgEncoder.sleep(1);
-		}
+		for (ImgDecoderThread t : decThreads) t.stopThread();
 	}
 
 	/**
@@ -160,7 +149,7 @@ public class ImgDecoder extends Decoder {
 			 */
 			if (endState.endLSB > 0) {
 				extractDataFromPixel(buffer, img.getRGB(x, y));
-				while (buffer.size() > (numOfChannels * bitsPerChannel) - endState.endLSB)
+				while (buffer.size() > (numOfChannels * LSBsToUse) - endState.endLSB)
 					buffer.removeFirst();
 				x++;
 			}
@@ -177,7 +166,7 @@ public class ImgDecoder extends Decoder {
 	/**
 	 * Loads a specified number of bits from a buffer into an array.
 	 *
-	 * @param buffer Deque to read bits from
+	 * @param buffer     Deque to read bits from
 	 * @param bitsToRead Number of bits to load from the buffer to the array
 	 * @return Array of bits of specified dimensions
 	 */
@@ -202,7 +191,7 @@ public class ImgDecoder extends Decoder {
 		byte[] bBits = BitByteConv.intToBitArray(orig & 0xff, Byte.SIZE); // Get blue channel value
 
 		// Write least significant bit(s) from the color channels to the queue of bits to recover the encoded file
-		for (int lsb = 0; lsb < bitsPerChannel; lsb++) {
+		for (int lsb = 0; lsb < LSBsToUse; lsb++) {
 			buffer.add(rBits[rBits.length - 1 - lsb]);
 			buffer.add(gBits[gBits.length - 1 - lsb]);
 			buffer.add(bBits[bBits.length - 1 - lsb]);

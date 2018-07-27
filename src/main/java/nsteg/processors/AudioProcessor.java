@@ -2,7 +2,7 @@ package nsteg.processors;
 
 import net.sourceforge.javaflacencoder.*;
 import nsteg.Spinner;
-import nsteg.encoders.aud.AudioEncoder;
+import nsteg.encoders.aud.AudEncoder;
 import nsteg.encoders.aud.FLACData;
 import org.kc7bfi.jflac.FLACDecoder;
 import org.kc7bfi.jflac.PCMProcessor;
@@ -139,9 +139,9 @@ public class AudioProcessor {
 	 * Writes an audio file containing the encoded data to disk, to the format requested by the user.
 	 *
 	 * @param outName      File name for the audio file containing the encoded data (including audio file extension)
-	 * @param audioEncoder AudioEncoder instance with which the file was encoded to the audio file
+	 * @param audEncoder AudEncoder instance with which the file was encoded to the audio file
 	 */
-	public static void writePCMToDisk(@NotNull String outName, @NotNull AudioEncoder audioEncoder) {
+	public static void writePCMToDisk(@NotNull String outName, @NotNull AudEncoder audEncoder) {
 		String[] fileNameSplit = outName.split("\\.");
 		String fileExt = fileNameSplit[fileNameSplit.length - 1];
 
@@ -150,9 +150,9 @@ public class AudioProcessor {
 		Spinner.printWithSpinner("Writing encoded audio file to disk... ");
 
 		if ("wav".equalsIgnoreCase(fileExt))
-			writePCMToWAV(outName, audioEncoder.getEncodedPCM(), audioEncoder.getChannels(), audioEncoder.getSampleRate());
+			writePCMToWAV(outName, audEncoder.getEncodedPCM(), audEncoder.getChannels(), audEncoder.getSampleRate());
 		else if ("flac".equalsIgnoreCase(fileExt))
-			writePCMToFLAC(outName, audioEncoder.getEncodedPCM(), audioEncoder.getBitsPerSample(), audioEncoder.getChannels(), audioEncoder.getSampleRate());
+			writePCMToFLAC(outName, audEncoder.getEncodedPCM(), audEncoder.getBitsPerSample(), audEncoder.getChannels(), audEncoder.getSampleRate());
 	}
 
 	/**
