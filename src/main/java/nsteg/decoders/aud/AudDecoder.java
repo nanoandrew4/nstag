@@ -138,8 +138,6 @@ public class AudDecoder extends Decoder {
 			remainingBytes -= approxBytesPerThread;
 		}
 
-		stopThreads();
-
 		return fileBytes;
 	}
 }

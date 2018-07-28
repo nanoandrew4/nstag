@@ -12,13 +12,20 @@ import nsteg.threads.AudThread;
 public class AudEncoderThread extends AudThread {
 	private byte[] bitsToEncode;
 
+	private static int[] threadPCMPos = new int[Runtime.getRuntime().availableProcessors()];
+	private int threadID;
+
 	/**
 	 * Initializes the thread, and assigns the PCM byte array that will be worked on.
 	 *
 	 * @param pcm PCM byte array into which this thread should encode
 	 */
-	AudEncoderThread(byte[] pcm) {
+	AudEncoderThread(byte[] pcm, int threadID) {
 		super(pcm);
+		this.threadID = threadID;
+
+		for (int i = 0; i < threadPCMPos.length; i++)
+			threadPCMPos[i] = -1;
 	}
 
 	/**
@@ -47,17 +54,35 @@ public class AudEncoderThread extends AudThread {
 		return endState;
 	}
 
+	private synchronized boolean requestLock(int PCMPos) {
+		for (int i : threadPCMPos)
+			if (i == PCMPos)
+				return false;
+		threadPCMPos[threadID] = PCMPos;
+		return true;
+	}
+
+	private void waitForLock(int PCMPos) {
+		while (!requestLock(PCMPos))
+			sleepMillis(1);
+	}
+
+	private synchronized void release() {
+		threadPCMPos[threadID] = -1;
+	}
+
 	@Override
 	public void run() {
 		while (running) {
 			if (active) {
 				for (int currBitPos = 0; currBitPos < bitsToEncode.length; ) {
+					waitForLock(currPCMByte);
 					byte[] byteBits = BitByteConv.intToBitArray(pcm[currPCMByte], Byte.SIZE);
 					// Write bits to the least significant bit(s), until no more bits can be written to current byte, or all bits have been written
 					for (; currLSB < LSBsToUse && currBitPos < bitsToEncode.length; currLSB++)
 						byteBits[byteBits.length - 1 - currLSB] = bitsToEncode[currBitPos++];
 					pcm[currPCMByte] = (byte) BitByteConv.bitArrayToInt(byteBits, true);
-
+					release();
 					/*
 					 * If no more bits to write in this byte, move on two bytes. This is done to prevent audible changes, since
 					 * most music has two channels, and apparently changing the data in the second results in barely any

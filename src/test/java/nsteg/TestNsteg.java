@@ -66,6 +66,7 @@ public class TestNsteg {
 				int bytesToRead = BitByteConv.bitArrayToInt(fSizeBits, false);
 
 				byte[] decData = id.readBytes(bytesToRead);
+				id.stopThreads();
 
 				assertArrayEquals(data, decData);
 

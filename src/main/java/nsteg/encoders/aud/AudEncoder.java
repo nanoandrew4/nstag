@@ -199,13 +199,18 @@ public class AudEncoder extends Encoder {
 	 */
 	private void initThreads(byte[] pcm, int LSBsToUse) {
 		for (int i = 0; i < encThreads.length; i++) {
-			encThreads[i] = new AudEncoderThread(pcm);
+			encThreads[i] = new AudEncoderThread(pcm, i);
 			encThreads[i].start();
 		}
 
 		encodeBits(BitByteConv.intToBitArray(LSBsToUse, LSB_BITS_COUNT));
-		while (encThreads[0].isActive())
-			sleep(1);
+		for (int t = 0; t < encThreads.length;) {
+			if (!encThreads[t].isActive())
+				t++;
+			else
+				sleep(10);
+		}
+
 		for (AudEncoderThread t : encThreads)
 			t.setLSBsToUse(LSBsToUse);
 	}

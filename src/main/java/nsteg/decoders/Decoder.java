@@ -97,6 +97,7 @@ public abstract class Decoder {
 		Spinner.printWithSpinner("Extracting file data from image... ");
 		// Read compressed bytes, decrypt if necessary, then decompress
 		byte[] dataBytes = decoder.readBytes(compFileSize);
+		decoder.stopThreads();
 
 		Spinner.end();
 		if (encrypted)

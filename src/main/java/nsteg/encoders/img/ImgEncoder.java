@@ -96,7 +96,7 @@ public class ImgEncoder extends Encoder {
 				nextChanToWrite = imgEndState.endChan;
 				break;
 			} else
-				sleep(1);
+				sleep(10);
 			i++;
 		}
 	}
@@ -125,13 +125,18 @@ public class ImgEncoder extends Encoder {
 
 	private void initThreads(int numOfChannels, int bitsPerChannel) {
 		for (int i = 0; i < encThreads.length; i++) {
-			encThreads[i] = new ImgEncoderThread(img, numOfChannels);
+			encThreads[i] = new ImgEncoderThread(img, numOfChannels, i);
 			encThreads[i].start();
 		}
 
 		encodeBits(BitByteConv.intToBitArray(bitsPerChannel, 4));
-		while (encThreads[0].isActive())
-			sleep(2);
+
+		for (int t = 0; t < encThreads.length;) {
+			if (!encThreads[t].isActive())
+				t++;
+			else
+				sleep(10);
+		}
 
 		for (ImgEncoderThread t : encThreads)
 			t.setLSBsToUse(bitsPerChannel);

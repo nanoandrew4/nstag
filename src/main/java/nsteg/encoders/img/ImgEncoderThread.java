@@ -14,10 +14,37 @@ import java.awt.image.BufferedImage;
  */
 public class ImgEncoderThread extends ImgThread {
 	private byte[] bitsToWrite;
-	private int currLSB,  nextChanToWrite, currBit;
+	private int currLSB, nextChanToWrite, currBit;
 
-	ImgEncoderThread(@NotNull BufferedImage img, int numOfChannels) {
+	private static int[][] threadPixPos = new int[Runtime.getRuntime().availableProcessors()][2];
+	private int threadID;
+
+	ImgEncoderThread(@NotNull BufferedImage img, int numOfChannels, int threadID) {
 		super(img, numOfChannels);
+		this.threadID = threadID;
+
+		for (int j = 0; j < 2; j++)
+			for (int i = 0; i < threadPixPos.length; i++)
+				threadPixPos[i][j] = -1;
+	}
+
+	private synchronized boolean requestLock(int x, int y) {
+		for (int[] i : threadPixPos)
+			if (i[0] == x && i[1] == y)
+				return false;
+		threadPixPos[threadID][0] = x;
+		threadPixPos[threadID][1] = y;
+		return true;
+	}
+
+	private void waitForLock(int x, int y) {
+		while (!requestLock(x, y))
+			sleepMillis(1);
+	}
+
+	private synchronized void release() {
+		threadPixPos[threadID][0] = -1;
+		threadPixPos[threadID][1] = -1;
 	}
 
 	@Override
@@ -26,7 +53,9 @@ public class ImgEncoderThread extends ImgThread {
 			if (active) {
 				for (int y = sy; y < height && currBit < bitsToWrite.length; y++) {
 					for (int x = sx; x < width && currBit < bitsToWrite.length; ) {
+						waitForLock(x, y);
 						img.setRGB(x, y, insertDataToPixel(img.getRGB(x, y)));
+						release();
 
 						// If all data has been read from the pixel, move to next one
 						if ((currLSB %= LSBsToUse) == 0 && nextChanToWrite == 0)

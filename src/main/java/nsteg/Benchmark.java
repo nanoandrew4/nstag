@@ -56,8 +56,8 @@ public class Benchmark {
 
 			long start = System.currentTimeMillis();
 			ie.encodeBytes(dataToEncode);
-			long finish = System.currentTimeMillis();
 			ie.stopThreads();
+			long finish = System.currentTimeMillis();
 
 			printEncDecSpeed(start, finish, dataToEncode.length, bpc, true);
 
@@ -67,6 +67,7 @@ public class Benchmark {
 
 			start = System.currentTimeMillis();
 			id.readBytes(dataToEncode.length);
+			id.stopThreads();
 			finish = System.currentTimeMillis();
 
 			printEncDecSpeed(start, finish, dataToEncode.length, bpc, false);
@@ -103,8 +104,8 @@ public class Benchmark {
 
 			long start = System.currentTimeMillis();
 			ae.encodeBytes(dataToEncode);
-			long finish = System.currentTimeMillis();
 			ae.stopThreads();
+			long finish = System.currentTimeMillis();
 
 			printEncDecSpeed(start, finish, dataToEncode.length, bpc, true);
 
@@ -116,6 +117,7 @@ public class Benchmark {
 
 			start = System.currentTimeMillis();
 			ad.readBytes(dataToEncode.length);
+			ad.stopThreads();
 			finish = System.currentTimeMillis();
 
 			printEncDecSpeed(start, finish, dataToEncode.length, bpc, false);

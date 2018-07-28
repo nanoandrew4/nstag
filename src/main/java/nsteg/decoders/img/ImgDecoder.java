@@ -158,7 +158,6 @@ public class ImgDecoder extends Decoder {
 		}
 
 		buffer.clear();
-		stopThreads(); // MOVE TO DECODER ABS CLASS
 
 		return extractedBytes;
 	}
