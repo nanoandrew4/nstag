@@ -31,14 +31,18 @@ public class ImgDecoder extends Decoder {
 	private ImgDecoderThread[] decThreads = new ImgDecoderThread[Runtime.getRuntime().availableProcessors()];
 
 	private BufferedImage img; // Image to read (A)RGB data from and to write (A)RGB modified data to
-	private int x = 0, y = 0; // Pixel coords
+	private int x = 0, y = 0; // Current pixel coords where data is being decoded from
 	private int width, height; // Img dims
 
 	private static int LSBsToUse; // Number of LSBs to use in each channel for encoding purposes
 	private static int numOfChannels;
 
-	// TODO: EXTEND
-	// Bits read from pixels are loaded to the buffer, for temporary storage, until the requested amount of them have been read
+	/*
+	 * Bits read from pixels are loaded to the buffer. A buffer is used because it is faster to read all the bits stored
+	 * in the pixel in at once, and some bits may belong to a query that will be made later. The buffer allows those
+	 * leftover bits to persist, and be used if readBits() or readBytes() is called in the future, since not all the
+	 * bits read will necessarily be used immediately.
+	 */
 	private ArrayDeque<Byte> buffer = new ArrayDeque<>();
 
 	/**
@@ -60,16 +64,11 @@ public class ImgDecoder extends Decoder {
 	/**
 	 * Initializes the threads used for decoding the file from the image. Must be called in the constructor of the class,
 	 * otherwise program will crash when it reaches the encodeBytes() method.
-	 * <p>
+	 * <p><br>
 	 * Also reads in the number of bits per channel that were used during encoding, which are necessary for initializing
 	 * the threads.
 	 */
 	private void initThreads() {
-		for (int t = 0; t < decThreads.length; t++) {
-			decThreads[t] = new ImgDecoderThread(img, numOfChannels);
-			decThreads[t].start();
-		}
-
 		/*
 		 * Read the number of LSBs that were used when encoding data to this image. Values are read from the first pixel
 		 * if the image is of ARGB type, or the first two pixels, if the image is of type RGB, since this value is
@@ -77,13 +76,17 @@ public class ImgDecoder extends Decoder {
 		 */
 		LSBsToUse = BitByteConv.bitArrayToInt(readBits(4), false);
 		buffer.clear();
-		for (ImgDecoderThread t : decThreads)
-			t.setLSBsToUse(LSBsToUse);
+
+		for (int t = 0; t < decThreads.length; t++) {
+			decThreads[t] = new ImgDecoderThread(img, numOfChannels);
+			decThreads[t].start();
+			decThreads[t].setLSBsToUse(LSBsToUse);
+		}
 	}
 
 	/**
-	 * Stops the threads, should only be used when all bytes have been read in.
-	 * TODO, PUT IN ABSTRACT CLASS
+	 * Stops the threads, should only be used when this decoder instance will no longer be used, to ensure all the data
+	 * has been written.
 	 */
 	public void stopThreads() {
 		for (ImgDecoderThread t : decThreads) t.stopThread();
@@ -91,7 +94,7 @@ public class ImgDecoder extends Decoder {
 
 	/**
 	 * Decodes bits from the image, until there are enough in the buffer to return the requested number of bits.
-	 * <p>
+	 * <p><br>
 	 * Reads one pixel at a time, and adds all the decoded bits to the buffer, until the buffer has enough bits
 	 * to return them. Any excess bits read will stay in the buffer, as they may belong to the next block of bits, if
 	 * there is a next block.
@@ -132,9 +135,11 @@ public class ImgDecoder extends Decoder {
 		int currByte = 0;
 		int remainingBytes = bytesToRead;
 		int approxBytesPerThread = bytesToRead / decThreads.length + 1;
+		// TODO: THREAD SHOULD WAIT FOR AVAILABLE THREADS, AND THEN SUBMIT JOB. SAME WITH AUDDECODER
 		for (ImgDecoderThread decThread : decThreads) {
 			// Number of bytes that the thread should write to the file byte array
 			approxBytesPerThread = approxBytesPerThread < remainingBytes ? approxBytesPerThread : remainingBytes;
+
 			// Information regarding where the thread will end the decoding job
 			ImgEndState endState = decThread.submitJob(extractedBytes, buffer, x, y, approxBytesPerThread, currByte);
 			currByte += approxBytesPerThread;
@@ -145,7 +150,7 @@ public class ImgDecoder extends Decoder {
 			 * Predicts which bits will be left over in the buffer after the thread finishes its decoding job, and
 			 * adds them to the empty buffer in this class in order to hand them to the next thread, so that no data is
 			 * lost. The last thread will load this array with extra bits, which do not belong to the file, so those
-			 * can be ignored
+			 * can be ignored.
 			 */
 			if (endState.endLSB > 0) {
 				extractDataFromPixel(buffer, img.getRGB(x, y));
@@ -163,7 +168,7 @@ public class ImgDecoder extends Decoder {
 	}
 
 	/**
-	 * Loads a specified number of bits from a buffer into an array.
+	 * Loads a specified number of bits from a buffer into a byte array.
 	 *
 	 * @param buffer     Deque to read bits from
 	 * @param bitsToRead Number of bits to load from the buffer to the array

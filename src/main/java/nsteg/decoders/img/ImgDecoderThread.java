@@ -1,6 +1,5 @@
 package nsteg.decoders.img;
 
-import nsteg.encoders.img.ImgEncoder;
 import nsteg.encoders.img.ImgEndState;
 import nsteg.nsteg_utils.BitByteConv;
 import nsteg.threads.ImgThread;
@@ -10,7 +9,7 @@ import java.awt.image.BufferedImage;
 import java.util.ArrayDeque;
 
 public class ImgDecoderThread extends ImgThread {
-	private byte[] fileBytes;
+	private byte[] byteArr;
 
 	// Bits read from pixels are loaded to the buffer, for temporary storage, until the requested amount of them have been read
 	private ArrayDeque<Byte> buffer = new ArrayDeque<>();
@@ -30,20 +29,20 @@ public class ImgDecoderThread extends ImgThread {
 	 * returned containing where the encoding process this thread will carry out will end, so that ImgEncoder can
 	 * submit more jobs without having to wait for this one to finish.
 	 *
-	 * @param fileBytes Array to which to write the bytes extracted from the image. Array must be the size of the
-	 *                  original file, since each thread will write to the correct place.
-	 * @param sx        Starting 'x' coordinate in the image
-	 * @param sy        Starting 'y' coordinate in the image
+	 * @param byteArr Array to which to write the bytes extracted from the image. Array must be the size of the
+	 *                original file, since each thread will write to the correct place.
+	 * @param sx      Starting 'x' coordinate in the image
+	 * @param sy      Starting 'y' coordinate in the image
 	 * @return ImgEndState instance containing ending positions of the starting values passed, so that jobs can quickly
 	 * be submitted to other threads, without having to wait for this one to finish
 	 */
-	ImgEndState submitJob(@NotNull byte[] fileBytes, @NotNull ArrayDeque<Byte> buffer, int sx, int sy, int bytesToRead, int byteStartPos) {
+	ImgEndState submitJob(@NotNull byte[] byteArr, @NotNull ArrayDeque<Byte> buffer, int sx, int sy, int bytesToRead, int byteStartPos) {
 		if (active) {
 			System.err.println("Thread was busy while attempting to submit job!");
 			return null;
 		}
 
-		this.fileBytes = fileBytes;
+		this.byteArr = byteArr;
 		this.sx = sx;
 		this.sy = sy;
 		this.currByte = byteStartPos;
@@ -76,7 +75,7 @@ public class ImgDecoderThread extends ImgThread {
 
 						// Assemble read bits into bytes and write them to the file byte array
 						while (buffer.size() >= Byte.SIZE && currByte < endByte)
-							fileBytes[currByte++] = (byte) BitByteConv.bitArrayToInt(ImgDecoder.loadFromBuffer(buffer, Byte.SIZE), true);
+							byteArr[currByte++] = (byte) BitByteConv.bitArrayToInt(ImgDecoder.loadFromBuffer(buffer, Byte.SIZE), true);
 					}
 					sx = 0;
 				}
@@ -85,7 +84,7 @@ public class ImgDecoderThread extends ImgThread {
 				buffer.clear();
 				active = false;
 			} else
-				ImgEncoder.sleep(1);
+				sleepMillis(10);
 		}
 	}
 }

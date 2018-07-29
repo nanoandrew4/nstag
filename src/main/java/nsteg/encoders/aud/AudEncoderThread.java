@@ -7,16 +7,17 @@ import nsteg.threads.AudThread;
  * This class operates on an audio file to encode data passed on by AudEncoder. It does so in a way that allows
  * threaded encoding, in order to use system resources fully. In essence, AudEncoder submits a job, and this class
  * tells it where it will finish encoding the passed data, so that AudEncoder can then assign more jobs to other
- * instances of this class.
+ * instances of this class. See the AudEncoder class docs for an overview of the encoding specification.
  */
 public class AudEncoderThread extends AudThread {
-	private byte[] bitsToEncode;
+	private byte[] bitsToEncode; // Stores the bits that the thread must encode, passed in through the submitJob() method
 
 	private static int[] threadPCMPos = new int[Runtime.getRuntime().availableProcessors()];
 	private int threadID;
 
 	/**
-	 * Initializes the thread, and assigns the PCM byte array that will be worked on.
+	 * Initializes the thread, and assigns the PCM byte array that will be worked on. Also sets up the thread safety
+	 * mechanism.
 	 *
 	 * @param pcm PCM byte array into which this thread should encode
 	 */
@@ -54,19 +55,31 @@ public class AudEncoderThread extends AudThread {
 		return endState;
 	}
 
+	/*
+	 * Prevents threads from modifying the same byte at the same time, since information might be lost.
+	 * Returns false if the requested byte is being used by another thread, or returns true if the byte is available.
+	 */
 	private synchronized boolean requestLock(int PCMPos) {
 		for (int i : threadPCMPos)
 			if (i == PCMPos)
 				return false;
-		threadPCMPos[threadID] = PCMPos;
+
+		threadPCMPos[threadID] = PCMPos; // Set which byte is being modified by this thread
 		return true;
 	}
 
+	/*
+	 * Waits until the requested byte is available for modification.
+	 */
 	private void waitForLock(int PCMPos) {
 		while (!requestLock(PCMPos))
 			sleepMillis(1);
 	}
 
+	/*
+	 * Releases the byte this thread was being worked on, so that another thread may work on the modified byte, instead
+	 * of the original.
+	 */
 	private synchronized void release() {
 		threadPCMPos[threadID] = -1;
 	}
@@ -78,6 +91,7 @@ public class AudEncoderThread extends AudThread {
 				for (int currBitPos = 0; currBitPos < bitsToEncode.length; ) {
 					waitForLock(currPCMByte);
 					byte[] byteBits = BitByteConv.intToBitArray(pcm[currPCMByte], Byte.SIZE);
+
 					// Write bits to the least significant bit(s), until no more bits can be written to current byte, or all bits have been written
 					for (; currLSB < LSBsToUse && currBitPos < bitsToEncode.length; currLSB++)
 						byteBits[byteBits.length - 1 - currLSB] = bitsToEncode[currBitPos++];
@@ -96,7 +110,7 @@ public class AudEncoderThread extends AudThread {
 
 				active = false;
 			} else
-				sleepMillis(5);
+				sleepMillis(10);
 		}
 	}
 }

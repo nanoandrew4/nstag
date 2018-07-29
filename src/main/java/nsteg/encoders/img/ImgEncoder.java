@@ -22,7 +22,7 @@ public class ImgEncoder extends Encoder {
 	private ImgEncoderThread[] encThreads = new ImgEncoderThread[Runtime.getRuntime().availableProcessors()];
 
 	private BufferedImage img; // Image to read (A)RGB data from and to write (A)RGB modified data to
-	private int x = 0, y = 0; // Pixel coords
+	private int x = 0, y = 0; // Current pixel coords
 
 	private int nextChanToWrite; // Next channel, at current LSB position in current pixel, to be written to
 	private int currLSB; // Current least significant bit position, for all channels, at the current pixel
@@ -87,7 +87,7 @@ public class ImgEncoder extends Encoder {
 	 */
 
 	public void encodeBits(@NotNull byte[] bitsToEncode) {
-		for (int i = 0; i < encThreads.length; i %= encThreads.length) {
+		for (int i = 0; i < encThreads.length; i = (i + 1) % encThreads.length) {
 			if (!encThreads[i].isActive()) {
 				ImgEndState imgEndState = encThreads[i].submitJob(bitsToEncode, x, y, currLSB, nextChanToWrite);
 				x = imgEndState.endX;
@@ -97,7 +97,6 @@ public class ImgEncoder extends Encoder {
 				break;
 			} else
 				sleep(10);
-			i++;
 		}
 	}
 
@@ -123,6 +122,13 @@ public class ImgEncoder extends Encoder {
 		}
 	}
 
+	/**
+	 * Initializes the threads and encodes the least significant bits to be used during the encoding process.
+	 * Once this method returns, the threads are ready to encode.
+	 *
+	 * @param numOfChannels
+	 * @param bitsPerChannel
+	 */
 	private void initThreads(int numOfChannels, int bitsPerChannel) {
 		for (int i = 0; i < encThreads.length; i++) {
 			encThreads[i] = new ImgEncoderThread(img, numOfChannels, i);
@@ -131,7 +137,7 @@ public class ImgEncoder extends Encoder {
 
 		encodeBits(BitByteConv.intToBitArray(bitsPerChannel, 4));
 
-		for (int t = 0; t < encThreads.length;) {
+		for (int t = 0; t < encThreads.length; ) {
 			if (!encThreads[t].isActive())
 				t++;
 			else

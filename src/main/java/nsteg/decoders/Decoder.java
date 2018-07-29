@@ -21,7 +21,7 @@ import java.io.IOException;
 public abstract class Decoder {
 
 	/**
-	 * Defines the number of bits that were used for encoding the size of the file to be decoded.
+	 * Defines the number of bits that are used for encoding the size of the file to be decoded.
 	 */
 	private static final int SIZE_BITS_COUNT = Encoder.SIZE_BITS_COUNT;
 
@@ -37,6 +37,10 @@ public abstract class Decoder {
 	// Impl specific
 	public abstract byte[] readBytes(int bytesToRead);
 
+	/**
+	 * Stops all threads being used by this decoder instance. Calling this method is required to ensure that the data
+	 * has been fully read, since it waits for all the threads to finish before returning.
+	 */
 	public abstract void stopThreads();
 
 	/**
