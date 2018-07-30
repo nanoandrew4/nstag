@@ -16,9 +16,19 @@ public class ImgEncoderThread extends ImgThread {
 	private byte[] bitsToWrite;
 	private int currLSB, nextChanToWrite, currBit;
 
+	// Used to prevent threads from reading and writing from the same pixel at the same time, otherwise data may be lost
 	private static int[][] threadPixPos = new int[Runtime.getRuntime().availableProcessors()][2];
 	private int threadID;
 
+	/**
+	 * Initializes a thread, and assigns the image that will be worked on, as well as setting up the thread safety
+	 * mechanism.
+	 *
+	 * @param img           BufferedImage object to encode the data to
+	 * @param numOfChannels Number of channels in the BufferedImage
+	 * @param threadID      ID for the thread safety mechanism, number 0-availableProcessors. Use iteration count as thread ID
+	 *                      when initializing the threads in another class
+	 */
 	ImgEncoderThread(@NotNull BufferedImage img, int numOfChannels, int threadID) {
 		super(img, numOfChannels);
 		this.threadID = threadID;
@@ -28,6 +38,14 @@ public class ImgEncoderThread extends ImgThread {
 				threadPixPos[i][j] = -1;
 	}
 
+	/**
+	 * Prevents race condition between multiple threads when modifying a pixel. In essence, disallows multiple threads
+	 * from modifying the same pixel at the same time, one must wait for the other to release the lock on that pixel.
+	 *
+	 * @param x X coordinate of the desired pixel in the BufferedImage
+	 * @param y Y coordinate of the desired pixel in the BufferedImage
+	 * @return True if the pixel is available, false if it is being used by another thread
+	 */
 	private synchronized boolean requestLock(int x, int y) {
 		for (int[] i : threadPixPos)
 			if (i[0] == x && i[1] == y)
@@ -37,11 +55,20 @@ public class ImgEncoderThread extends ImgThread {
 		return true;
 	}
 
+	/**
+	 * Waits until the pixel is released by another thread, if another thread was using it.
+	 *
+	 * @param x X coordinate of the desired pixel in the BufferedImage
+	 * @param y Y coordinate of the desired pixel in the BufferedImage
+	 */
 	private void waitForLock(int x, int y) {
 		while (!requestLock(x, y))
 			sleepMillis(1);
 	}
 
+	/**
+	 * Releases the pixel being worked on by the calling thread, so that other threads may work on it if necessary.
+	 */
 	private synchronized void release() {
 		threadPixPos[threadID][0] = -1;
 		threadPixPos[threadID][1] = -1;
@@ -65,7 +92,7 @@ public class ImgEncoderThread extends ImgThread {
 				}
 				active = false;
 			} else
-				ImgEncoder.sleep(1);
+				sleepMillis(1);
 		}
 	}
 

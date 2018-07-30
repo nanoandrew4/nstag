@@ -24,8 +24,6 @@ import java.io.IOException;
  * it moves in steps of two.
  */
 public class AudDecoder extends Decoder {
-	private AudDecoderThread[] decThreads = new AudDecoderThread[Runtime.getRuntime().availableProcessors()];
-
 	// Holds the PCM data of the audio file
 	private byte[] encodedBytes;
 
@@ -57,7 +55,7 @@ public class AudDecoder extends Decoder {
 			this.encodedBytes = AudioProcessor.loadAudioFile(decodedStream);
 		}
 
-		initThreads();
+		LSBsToUse = BitByteConv.bitArrayToInt(readBits(LSB_BITS_COUNT), false);
 	}
 
 	/**
@@ -69,26 +67,11 @@ public class AudDecoder extends Decoder {
 	 */
 	public AudDecoder(@NotNull AudioInputStream audioStream) {
 		this.encodedBytes = AudioProcessor.loadAudioFile(audioStream);
-		initThreads();
-	}
-
-	/**
-	 * Reads the number of least significant bits used during encoding and initializes the threads that will be used for
-	 * decoding large numbers of bytes, in the readBytes() method.
-	 */
-	private void initThreads() {
 		LSBsToUse = BitByteConv.bitArrayToInt(readBits(LSB_BITS_COUNT), false);
-		for (int t = 0; t < decThreads.length; t++) {
-			decThreads[t] = new AudDecoderThread(encodedBytes);
-			decThreads[t].setLSBsToUse(LSBsToUse);
-			decThreads[t].start();
-		}
 	}
 
 	@Override
-	// Desc in Decoder class
 	public void stopThreads() {
-		for (AudDecoderThread t : decThreads) t.stopThread();
 	}
 
 	/**
@@ -131,21 +114,8 @@ public class AudDecoder extends Decoder {
 	public byte[] readBytes(int bytesToRead) {
 		byte[] byteArr = new byte[bytesToRead];
 
-		int currByteArrPos = 0;
-		int remainingBytes = bytesToRead;
-		int approxBytesPerThread = bytesToRead / decThreads.length + 1;
-		for (AudDecoderThread decThread : decThreads) {
-			// Number of bytes that the thread should write to the file byte array
-			approxBytesPerThread = approxBytesPerThread < remainingBytes ? approxBytesPerThread : remainingBytes;
-
-			// Information regarding where the thread will end the decoding job
-			AudEndState endState = decThread.submitJob(byteArr, currPCMByte, currByteArrPos, currLSB, approxBytesPerThread);
-			currByteArrPos += approxBytesPerThread;
-			currPCMByte = endState.endByte;
-			currLSB = endState.endLSB;
-
-			remainingBytes -= approxBytesPerThread;
-		}
+		for (int i = 0; i < bytesToRead; i++)
+			byteArr[i] = (byte) BitByteConv.bitArrayToInt(readBits(Byte.SIZE), true);
 
 		return byteArr;
 	}

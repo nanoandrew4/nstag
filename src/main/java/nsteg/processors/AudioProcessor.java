@@ -42,7 +42,7 @@ public class AudioProcessor {
 	 * that is too big for the data it contains. It will cut any excess data off, and return only an array containing
 	 * relevant data.
 	 *
-	 * @param arr Array to be trimmed
+	 * @param arr         Array to be trimmed
 	 * @param desiredSize Desired length for the trimmed array
 	 * @return Trimmed array
 	 */
@@ -138,7 +138,7 @@ public class AudioProcessor {
 	/**
 	 * Writes an audio file containing the encoded data to disk, to the format requested by the user.
 	 *
-	 * @param outName      File name for the audio file containing the encoded data (including audio file extension)
+	 * @param outName    File name for the audio file containing the encoded data (including audio file extension)
 	 * @param audEncoder AudEncoder instance with which the file was encoded to the audio file
 	 */
 	public static void writePCMToDisk(@NotNull String outName, @NotNull AudEncoder audEncoder) {

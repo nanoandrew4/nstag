@@ -1,7 +1,6 @@
 package nsteg.decoders.img;
 
 import nsteg.decoders.Decoder;
-import nsteg.encoders.img.ImgEncoder;
 import nsteg.encoders.img.ImgEndState;
 import nsteg.nsteg_utils.BitByteConv;
 
@@ -124,7 +123,6 @@ public class ImgDecoder extends Decoder {
 	 * is told where to write to in the array, in order to assemble the file properly. The threads return where they
 	 * will finish encoding, which aids in being able to tell the next thread where to start, as well as loading the bits
 	 * from a pixel that the previous thread did not use into a buffer, so that the next thread can use them.
-	 * TODO: REVIEW BEFORE RELEASE
 	 *
 	 * @param bytesToRead Number of bytes to decode from the image
 	 * @return Array of decoded bytes
@@ -135,28 +133,34 @@ public class ImgDecoder extends Decoder {
 		int currByte = 0;
 		int remainingBytes = bytesToRead;
 		int approxBytesPerThread = bytesToRead / decThreads.length + 1;
-		// TODO: THREAD SHOULD WAIT FOR AVAILABLE THREADS, AND THEN SUBMIT JOB. SAME WITH AUDDECODER
-		for (ImgDecoderThread decThread : decThreads) {
+		while (remainingBytes > 0) {
 			// Number of bytes that the thread should write to the file byte array
 			approxBytesPerThread = approxBytesPerThread < remainingBytes ? approxBytesPerThread : remainingBytes;
 
-			// Information regarding where the thread will end the decoding job
-			ImgEndState endState = decThread.submitJob(extractedBytes, buffer, x, y, approxBytesPerThread, currByte);
-			currByte += approxBytesPerThread;
-			x = endState.endX;
-			y = endState.endY;
+			for (int t = 0; t < decThreads.length; t = (t + 1) % decThreads.length) {
+				if (!decThreads[t].isActive()) {
+					// Information regarding where the thread will end the decoding job
+					ImgEndState endState = decThreads[t].submitJob(extractedBytes, buffer, x, y, approxBytesPerThread, currByte);
+					currByte += approxBytesPerThread;
+					x = endState.endX;
+					y = endState.endY;
 
-			/*
-			 * Predicts which bits will be left over in the buffer after the thread finishes its decoding job, and
-			 * adds them to the empty buffer in this class in order to hand them to the next thread, so that no data is
-			 * lost. The last thread will load this array with extra bits, which do not belong to the file, so those
-			 * can be ignored.
-			 */
-			if (endState.endLSB > 0) {
-				extractDataFromPixel(buffer, img.getRGB(x, y));
-				while (buffer.size() > (numOfChannels * LSBsToUse) - endState.endLSB)
-					buffer.removeFirst();
-				x++;
+					/*
+					 * Predicts which bits will be left over in the buffer after the thread finishes its decoding job, and
+					 * adds them to the empty buffer in this class in order to hand them to the next thread, so that no data is
+					 * lost. The last thread will load this array with extra bits, which do not belong to the file, so those
+					 * can be ignored.
+					 */
+					if (endState.endLSB > 0) {
+						extractDataFromPixel(buffer, img.getRGB(x, y));
+						while (buffer.size() > (numOfChannels * LSBsToUse) - endState.endLSB)
+							buffer.removeFirst();
+						x++;
+					}
+
+					break;
+				} else if (t + 1 == decThreads.length)
+					sleep(10);
 			}
 
 			remainingBytes -= approxBytesPerThread;

@@ -2,7 +2,6 @@ package nsteg;
 
 import nsteg.decoders.Decoder;
 import nsteg.encoders.Encoder;
-import nsteg.encoders.FileType;
 
 import java.nio.file.Files;
 import java.nio.file.Paths;

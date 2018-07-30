@@ -31,16 +31,16 @@ public class ImgEncoder extends Encoder {
 	 * Initializes an ImgEncoder instance with the given image, determines the number of channels in the image,
 	 * and encodes the number of LSBs that will be used in each channel into the image.
 	 *
-	 * @param origImg        Image to encode data into
-	 * @param bitsPerChannel Number of least significant bits to use in each channel
+	 * @param origImg   Image to encode data into
+	 * @param LSBsToUse Number of least significant bits to use in each channel
 	 */
-	public ImgEncoder(@NotNull BufferedImage origImg, int bitsPerChannel) {
+	public ImgEncoder(@NotNull BufferedImage origImg, int LSBsToUse) {
 		img = origImg;
 		int numOfChannels = img.getColorModel().hasAlpha() ? 4 : 3;
 
-		initThreads(numOfChannels, bitsPerChannel);
+		initThreads(numOfChannels, LSBsToUse);
 
-		// Use two pixels for bitsPerChannel encoding, so restart encoding at 3rd pixel, if image only has three channels
+		// Use two pixels for LSBsToUse encoding, so restart encoding at 3rd pixel, if image only has three channels
 		if (numOfChannels == 3) {
 			x = 2;
 			currLSB = nextChanToWrite = 0;
@@ -126,16 +126,16 @@ public class ImgEncoder extends Encoder {
 	 * Initializes the threads and encodes the least significant bits to be used during the encoding process.
 	 * Once this method returns, the threads are ready to encode.
 	 *
-	 * @param numOfChannels
-	 * @param bitsPerChannel
+	 * @param numOfChannels Number of channels in the image
+	 * @param LSBsToUse     Number of least significant bits to use for encoding the data
 	 */
-	private void initThreads(int numOfChannels, int bitsPerChannel) {
+	private void initThreads(int numOfChannels, int LSBsToUse) {
 		for (int i = 0; i < encThreads.length; i++) {
 			encThreads[i] = new ImgEncoderThread(img, numOfChannels, i);
 			encThreads[i].start();
 		}
 
-		encodeBits(BitByteConv.intToBitArray(bitsPerChannel, 4));
+		encodeBits(BitByteConv.intToBitArray(LSBsToUse, 4));
 
 		for (int t = 0; t < encThreads.length; ) {
 			if (!encThreads[t].isActive())
@@ -145,7 +145,7 @@ public class ImgEncoder extends Encoder {
 		}
 
 		for (ImgEncoderThread t : encThreads)
-			t.setLSBsToUse(bitsPerChannel);
+			t.setLSBsToUse(LSBsToUse);
 	}
 
 	/**

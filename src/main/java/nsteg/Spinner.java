@@ -39,7 +39,7 @@ public class Spinner extends Thread {
 		}
 	}
 
-	public static void spin() {
+	private static void spin() {
 		if (t == null || !Spinner.spinning) {
 			t = new Thread(new Spinner());
 			t.setDaemon(true);

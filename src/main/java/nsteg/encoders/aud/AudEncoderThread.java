@@ -55,9 +55,12 @@ public class AudEncoderThread extends AudThread {
 		return endState;
 	}
 
-	/*
+	/**
 	 * Prevents threads from modifying the same byte at the same time, since information might be lost.
 	 * Returns false if the requested byte is being used by another thread, or returns true if the byte is available.
+	 *
+	 * @param PCMPos Desired byte position in PCM byte array to modify
+	 * @return True if the byte is available for modification, false if it is being modified by another thread
 	 */
 	private synchronized boolean requestLock(int PCMPos) {
 		for (int i : threadPCMPos)
@@ -68,15 +71,17 @@ public class AudEncoderThread extends AudThread {
 		return true;
 	}
 
-	/*
+	/**
 	 * Waits until the requested byte is available for modification.
+	 *
+	 * @param PCMPos Desired byte position in PCM byte array to modify
 	 */
 	private void waitForLock(int PCMPos) {
 		while (!requestLock(PCMPos))
 			sleepMillis(1);
 	}
 
-	/*
+	/**
 	 * Releases the byte this thread was being worked on, so that another thread may work on the modified byte, instead
 	 * of the original.
 	 */

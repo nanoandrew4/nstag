@@ -20,6 +20,13 @@ public class ImgDecoderThread extends ImgThread {
 	 */
 	private static final int BLOCK_SIZE = 1024;
 
+	/**
+	 * Initialize the thread with the BufferedImage that will be operated on, and the number of channels that the image
+	 * has.
+	 *
+	 * @param img           BufferedImage to operate on
+	 * @param numOfChannels Number of channels in the BufferedImage
+	 */
 	ImgDecoderThread(@NotNull BufferedImage img, int numOfChannels) {
 		super(img, numOfChannels);
 	}
@@ -52,6 +59,8 @@ public class ImgDecoderThread extends ImgThread {
 		this.buffer.addAll(buffer);
 		buffer.clear();
 
+		active = true;
+
 		int bitsPerPixel = numOfChannels * LSBsToUse;
 		int bitsToRead = bytesToRead * Byte.SIZE - this.buffer.size();
 		// Determine where the decoding process will end, so that other threads can be started where this one leaves off
@@ -59,7 +68,6 @@ public class ImgDecoderThread extends ImgThread {
 		endState.endY = sy + (sx + (bitsToRead / bitsPerPixel)) / width;
 		endState.endLSB = bitsToRead % bitsPerPixel;
 
-		active = true;
 		return endState;
 	}
 

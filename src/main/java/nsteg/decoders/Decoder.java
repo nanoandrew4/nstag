@@ -31,6 +31,13 @@ public abstract class Decoder {
 	 */
 	protected final static int LSB_BITS_COUNT = Encoder.LSB_BITS_COUNT;
 
+	protected static void sleep(long millis) {
+		try {
+			Thread.sleep(millis);
+		} catch (InterruptedException ignored) {
+		}
+	}
+
 	// Impl specific
 	public abstract byte[] readBits(int bitsToRead);
 

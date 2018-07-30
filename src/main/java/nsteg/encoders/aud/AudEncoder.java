@@ -63,7 +63,6 @@ public class AudEncoder extends Encoder {
 			}
 
 			AudioInputStream decodedStream = AudioSystem.getAudioInputStream(AudioFormat.Encoding.PCM_SIGNED, rawStream);
-			// TODO: DOESNT CHANNELS, SAMPLERATE AND BITSPERSAMPLE NEED SETTING?
 			initWithStream(decodedStream, LSBsToUse);
 		}
 	}

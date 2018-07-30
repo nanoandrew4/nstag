@@ -76,7 +76,7 @@ public abstract class Encoder {
 	 */
 	public final static int LSB_BITS_COUNT = 4;
 
-	public static void sleep(long millis) {
+	protected static void sleep(long millis) {
 		try {
 			Thread.sleep(millis);
 		} catch (InterruptedException ignored) {
@@ -144,7 +144,7 @@ public abstract class Encoder {
 	 * @param fileToEncode  File to be encoded into the image
 	 * @param outMediaName  Path and name of the desired output image (copy of the original + file data)
 	 * @param LSBsToUse     Number of least significant bits to use in each color channel. Using more bits will result
-	 *                      in a greater visual deviation from the original. Range is 1-8
+	 *                      in a greater visual deviation from the original. Range is 1-8. Recommended is 1-3
 	 */
 	public static void encode(@NotNull String origMediaPath, @NotNull String fileToEncode, @NotNull String outMediaName, int LSBsToUse) {
 		byte[] dataBytes;
@@ -161,7 +161,7 @@ public abstract class Encoder {
 
 		boolean encrypted = Crypto.offerToCrypt(true);
 
-		// Prepare data for use as part of AAD if encryption was used, and to be encoded into the image
+		// Size of the file being encoded, before compression
 		byte[] uncompFileSizeBits = BitByteConv.intToBitArray((int) origByteSize, SIZE_BITS_COUNT);
 
 		// Compressed size of the data, accounting for the InitVector and AAD data bits, if encryption is to be used
@@ -169,10 +169,7 @@ public abstract class Encoder {
 		byte[] compFileSizeBits = BitByteConv.intToBitArray(compSize, SIZE_BITS_COUNT);
 
 		Encoder encoder = getEncoder(origMediaPath, LSBsToUse);
-		if (encoder == null)
-			return;
-
-		if (!encoder.doesFileFit(dataBytes.length * Byte.SIZE, LSBsToUse, encrypted))
+		if (encoder == null || !encoder.doesFileFit(dataBytes.length * Byte.SIZE, LSBsToUse, encrypted))
 			return;
 
 		byte[] saltBytes = null;
