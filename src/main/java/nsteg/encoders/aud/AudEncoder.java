@@ -26,12 +26,11 @@ import java.io.IOException;
  * perceivable. This program assumes stereo audio files are being used, since they are the most popular.
  */
 public class AudEncoder extends Encoder {
-	private AudEncoderThread[] encThreads = new AudEncoderThread[Runtime.getRuntime().availableProcessors()];
-
 	private byte[] audBytes; // PCM data of the audio file that is to be used to encode data
 
 	// Position trackers, so that data can be written continuously
 	private int currLSB = 0, currByte = 0;
+	private int LSBsToUse = 1;
 
 	// Stored for writing to disk later
 	private int channels, sampleRate, bitsPerSample;
@@ -52,7 +51,8 @@ public class AudEncoder extends Encoder {
 			this.sampleRate = data.sampleRate;
 			this.audBytes = data.pcm;
 
-			initThreads(audBytes, LSBsToUse);
+			encodeBits(BitByteConv.intToBitArray(LSBsToUse, LSB_BITS_COUNT));
+			this.LSBsToUse = LSBsToUse;
 		} else {
 			AudioInputStream rawStream;
 			try {
@@ -90,7 +90,8 @@ public class AudEncoder extends Encoder {
 
 		this.audBytes = AudioProcessor.loadAudioFile(audioStream);
 
-		initThreads(audBytes, LSBsToUse);
+		encodeBits(BitByteConv.intToBitArray(LSBsToUse, LSB_BITS_COUNT));
+		this.LSBsToUse = LSBsToUse;
 	}
 
 	/**
@@ -130,46 +131,37 @@ public class AudEncoder extends Encoder {
 	}
 
 	/**
-	 * Encodes the specified bits to the PCM byte array, using threads to speed up the encoding process by distributing
-	 * the encoding tasks. See the AudEncoder class docs for the encoding specification.
+	 * Encodes the specified bits to the PCM byte array, by writing to the least significant bits of the right channel
+	 * (the program assumes a stereo audio file), which barely cause any distortion. All left channel bytes are skipped,
+	 * since even a minimal modification to that channel causes very audible distortions.
 	 *
 	 * @param bits Array of bits to encode into the audio file
 	 */
 	public void encodeBits(@NotNull byte[] bits) {
-		for (int i = 0; i < encThreads.length; i = (i + 1) % encThreads.length) {
-			if (!encThreads[i].isActive()) {
-				AudEndState endState = encThreads[i].submitJob(currByte, currLSB, bits);
-				currByte = endState.endByte;
-				currLSB = endState.endLSB;
-				return;
-			} else
-				sleep(1);
+		int currBitPos = 0;
+		while (currBitPos < bits.length) {
+			byte[] byteBits = BitByteConv.intToBitArray(audBytes[currByte], Byte.SIZE);
+
+			// Write bits to the least significant bit(s), until no more bits can be written to current byte, or all bits have been written
+			for (; currLSB < LSBsToUse && currBitPos < bits.length; currLSB++)
+				byteBits[byteBits.length - 1 - currLSB] = bits[currBitPos++];
+			audBytes[currByte] = (byte) BitByteConv.bitArrayToInt(byteBits, true);
+
+			if (currLSB == LSBsToUse) {
+				currLSB = 0;
+				currByte += 2; // Skip left channel, go directly to the next right channel PCM byte
+			}
 		}
 	}
 
 	/**
 	 * Encodes the specified bytes to the PCM byte array. This method uses encodeBits(byte[] bits) internally.
-	 * The bytes are split amongst the threads. This method converts chunks of bytes into an array of bits, and passes
-	 * them on to the threads, to split the workload. Each thread writes to a part of the audio file, and the end
-	 * result is an encoded PCM byte array that is identical to what would have been done with one thread, that is to say
-	 * the encoding process is still sequential.
 	 *
 	 * @param bytesToEncode Array of bytes to be encoded
 	 */
 	public void encodeBytes(@NotNull byte[] bytesToEncode) {
-		int currByte = 0;
-		int bytesSize = bytesToEncode.length;
-		for (; currByte < bytesToEncode.length; ) {
-			int bytesPerThread = bytesToEncode.length / encThreads.length;
-			bytesPerThread = (bytesSize < bytesPerThread ? bytesSize : bytesPerThread);
-			byte[] bits = new byte[bytesPerThread * Byte.SIZE];
-			for (int i = 0; i < bytesPerThread; i++)
-				System.arraycopy(BitByteConv.intToBitArray(bytesToEncode[currByte++], Byte.SIZE), 0, bits, i * Byte.SIZE, Byte.SIZE);
-
-			encodeBits(bits);
-
-			bytesSize -= bytesPerThread;
-		}
+		for (byte b : bytesToEncode)
+			encodeBits(BitByteConv.intToBitArray(b, Byte.SIZE));
 	}
 
 	// See abstract method for docs
@@ -191,38 +183,8 @@ public class AudEncoder extends Encoder {
 		return true;
 	}
 
-	/**
-	 * Initializes the threads and encodes the least significant bits to be used during the encoding process.
-	 * Once this method returns, the threads are ready to encode.
-	 *
-	 * @param pcm       PCM byte array representing the audio file into which the data will be encoded
-	 * @param LSBsToUse Number of least significant bits to use on each right channel byte. More allows for more data to
-	 *                  be stored, but will cause greater distortion. 1-4 recommended.
-	 */
-	private void initThreads(byte[] pcm, int LSBsToUse) {
-		for (int i = 0; i < encThreads.length; i++) {
-			encThreads[i] = new AudEncoderThread(pcm, i);
-			encThreads[i].start();
-		}
-
-		encodeBits(BitByteConv.intToBitArray(LSBsToUse, LSB_BITS_COUNT));
-		for (int t = 0; t < encThreads.length;) {
-			if (!encThreads[t].isActive())
-				t++;
-			else
-				sleep(1);
-		}
-
-		for (AudEncoderThread t : encThreads)
-			t.setLSBsToUse(LSBsToUse);
-	}
-
-	/**
-	 * Stops all AudEncoderThread instances. Must be called once this ImgEncoder instance has finished writing data,
-	 * otherwise the encoding will not complete successfully.
-	 */
 	@Override
 	public void stopThreads() {
-		for (AudEncoderThread encThread : encThreads) encThread.stopThread();
+		// Not applicable
 	}
 }

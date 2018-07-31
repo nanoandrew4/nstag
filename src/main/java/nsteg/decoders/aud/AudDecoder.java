@@ -1,7 +1,6 @@
 package nsteg.decoders.aud;
 
 import nsteg.decoders.Decoder;
-import nsteg.encoders.aud.AudEndState;
 import nsteg.encoders.aud.FLACData;
 import nsteg.nsteg_utils.BitByteConv;
 import nsteg.processors.AudioProcessor;
@@ -16,10 +15,6 @@ import java.io.IOException;
 
 /**
  * This class is responsible for decoding data that was previously encoded into an audio file using AudEncoder.
- * When a small number of bits must be read, such as the file metadata, they are read on the application thread, since
- * using threading in this case would be overkill, but when large number of bits must be read, for example, when reading
- * the file, threading is used to speed up the decoding process.
- * <p><br>
  * Since data was only encoded in the right channel bytes, the decoder skips all left channel bits, meaning that
  * it moves in steps of two.
  */
@@ -70,10 +65,6 @@ public class AudDecoder extends Decoder {
 		LSBsToUse = BitByteConv.bitArrayToInt(readBits(LSB_BITS_COUNT), false);
 	}
 
-	@Override
-	public void stopThreads() {
-	}
-
 	/**
 	 * Decodes a specific number of bits from the PCM audio data, and returns them as an array. Only right channel bytes
 	 * are read from, since the encoder does not touch left channel bytes.
@@ -102,11 +93,8 @@ public class AudDecoder extends Decoder {
 	}
 
 	/**
-	 * Decodes a specific number of bytes from the PCM audio data, and returns it as an array. This method employs the
-	 * classes threads in order to speed up the decoding process, which is useful when handling large amounts of data.
-	 * Each threads is assigned a number of bytes to decode, and the position they should write at in the byte array.
-	 * Each thread then reads bits from the PCM audio data, assembles them into bytes and writes them to the byte array.
-	 * The threads only read from right channel bytes, since the encoder does not touch left channel bytes.
+	 * Decodes a specific number of bytes from the PCM audio data, and returns it as an array. Uses
+	 * readBits(int bitsToRead) internally, to read each byte.
 	 *
 	 * @param bytesToRead Number of bytes to read
 	 * @return Array containing the decoded bytes, with the specified length
@@ -118,5 +106,10 @@ public class AudDecoder extends Decoder {
 			byteArr[i] = (byte) BitByteConv.bitArrayToInt(readBits(Byte.SIZE), true);
 
 		return byteArr;
+	}
+
+	@Override
+	public void stopThreads() {
+		// Not applicable
 	}
 }

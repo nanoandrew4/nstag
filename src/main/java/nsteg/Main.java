@@ -72,6 +72,11 @@ public class Main {
 		outImagePath = getOutMediaFile();
 
 		System.out.println("-------------------------------------------------------------------------------------------");
+		System.out.println("A smaller value will cause less distortion, but less data will fit.");
+		if (inFileType == FileType.IMAGE)
+			System.out.println("Recommended: 1-3");
+		else if (inFileType == FileType.AUDIO)
+			System.out.println("Recommended: 1-5");
 		System.out.print("Number of least significant bits to use (1-8): ");
 		int bitsToUse;
 		do {
