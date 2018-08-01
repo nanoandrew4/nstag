@@ -1,7 +1,7 @@
 package nsteg.processors;
 
 import net.sourceforge.javaflacencoder.*;
-import nsteg.Spinner;
+import nsteg.nsteg_utils.Spinner;
 import nsteg.encoders.aud.AudEncoder;
 import nsteg.encoders.aud.FLACData;
 import org.kc7bfi.jflac.FLACDecoder;

@@ -1,6 +1,6 @@
 package nsteg.encoders;
 
-import nsteg.Spinner;
+import nsteg.nsteg_utils.Spinner;
 import nsteg.encoders.aud.AudEncoder;
 import nsteg.encoders.img.ImgEncoder;
 import nsteg.nsteg_utils.BitByteConv;
@@ -146,8 +146,11 @@ public abstract class Encoder {
 	 * @param outMediaName  Path and name of the desired output image (copy of the original + file data)
 	 * @param LSBsToUse     Number of least significant bits to use in each color channel. Using more bits will result
 	 *                      in a greater visual deviation from the original. Range is 1-8. Recommended is 1-3
+	 * @param encrypt
+	 * @param pass
 	 */
-	public static void encode(@NotNull String origMediaPath, @NotNull String[] filesToEncode, @NotNull String outMediaName, int LSBsToUse) {
+	public static void encode(@NotNull String origMediaPath, @NotNull String[] filesToEncode,
+							  @NotNull String outMediaName, int LSBsToUse, Boolean encrypt, String pass) {
 		int[] fileSizes = new int[filesToEncode.length];
 		byte[] dataBytes = loadFiles(filesToEncode, fileSizes);
 		if (dataBytes == null)
@@ -156,23 +159,24 @@ public abstract class Encoder {
 		double origByteSize = dataBytes.length;
 		dataBytes = Compressor.compress(dataBytes);
 
-		boolean encrypted = Crypto.offerToCrypt(true);
+		if (encrypt == null)
+			encrypt = Crypto.offerToCrypt(true);
 
 		// Size of the file being encoded, before compression
 		byte[] uncompFileSizeBits = BitByteConv.intToBitArray((int) origByteSize, SIZE_BITS_COUNT);
 
 		// Compressed size of the data, accounting for the InitVector and AAD data bits, if encryption is to be used
-		int compSize = dataBytes.length + (encrypted ? Crypto.AES_IV_SIZE + Crypto.GCM_AAD_SIZE / Byte.SIZE : 0);
+		int compSize = dataBytes.length + (encrypt ? Crypto.AES_IV_SIZE + Crypto.GCM_AAD_SIZE / Byte.SIZE : 0);
 		byte[] compFileSizeBits = BitByteConv.intToBitArray(compSize, Integer.SIZE);
 
 		Encoder encoder = getEncoder(origMediaPath, LSBsToUse);
-		if (encoder == null || !encoder.doesFileFit(dataBytes.length * Byte.SIZE, filesToEncode.length, LSBsToUse, encrypted))
+		if (encoder == null || !encoder.doesFileFit(dataBytes.length * Byte.SIZE, filesToEncode.length, LSBsToUse, encrypt))
 			return;
 
 		byte[] saltBytes = null;
-		if (encrypted) {
+		if (encrypt) {
 			// Encrypt the data, and use the uncompressed and compressed data bits as AAD
-			byte[][] saltAndDataBits = Crypto.encrypt(dataBytes, Crypto.genAAD(uncompFileSizeBits, compFileSizeBits));
+			byte[][] saltAndDataBits = Crypto.encrypt(dataBytes, Crypto.genAAD(uncompFileSizeBits, compFileSizeBits), pass);
 			saltBytes = saltAndDataBits[0]; // Salt bytes, which are the last part of the header to be encoded
 			dataBytes = saltAndDataBits[1]; // Encrypted data, with IV and AAD
 		}
@@ -184,7 +188,7 @@ public abstract class Encoder {
 		encoder.encodeBits(compFileSizeBits);
 		encoder.encodeBits(uncompFileSizeBits);
 
-		if (encrypted)
+		if (encrypt)
 			encoder.encodeBytes(saltBytes);
 
 		Spinner.printWithSpinner("Encoding data to media file... ");

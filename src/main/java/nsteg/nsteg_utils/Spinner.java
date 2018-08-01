@@ -1,4 +1,4 @@
-package nsteg;
+package nsteg.nsteg_utils;
 
 import javax.validation.constraints.NotNull;
 

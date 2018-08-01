@@ -1,7 +1,8 @@
-package nsteg;
+package nsteg.main;
 
 import nsteg.decoders.Decoder;
 import nsteg.encoders.Encoder;
+import nsteg.nsteg_utils.FileType;
 
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -12,7 +13,12 @@ public class Main {
 
 	private static FileType inFileType = FileType.UNKNOWN;
 
-	public static void main(String... args) {
+	public static void main(String[] args) {
+		if (args.length > 0) {
+			CLIParser.parse(args);
+			return;
+		}
+
 		int opt;
 		while (true) {
 			System.out.println("Welcome to nsteg - A program that hides files inside images or audio files");
@@ -86,7 +92,7 @@ public class Main {
 		} while (bitsToUse < 1 || bitsToUse > 8);
 
 		System.out.println("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
-		Encoder.encode(origImagePath, filesToHide, outImagePath, bitsToUse);
+		Encoder.encode(origImagePath, filesToHide, outImagePath, bitsToUse, null, null);
 	}
 
 	private static void decode() {
@@ -107,7 +113,7 @@ public class Main {
 		outFileNames = in.nextLine().split(",");
 
 		System.out.println("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
-		Decoder.decode(encodedImgPath, outFileNames);
+		Decoder.decode(encodedImgPath, outFileNames, null, null);
 	}
 
 	private static String getMediaInputFile() {
@@ -127,10 +133,7 @@ public class Main {
 		}
 		while (!Files.exists(Paths.get(file)) || (!Encoder.inImgFormats.contains(fileExt) && !Encoder.inAudFormats.contains(fileExt)));
 
-		if (Encoder.inImgFormats.contains(fileExt))
-			inFileType = FileType.IMAGE;
-		else if (Encoder.inAudFormats.contains(fileExt))
-			inFileType = FileType.AUDIO;
+		inFileType = FileType.getFileType(fileExt);
 
 		return file;
 	}

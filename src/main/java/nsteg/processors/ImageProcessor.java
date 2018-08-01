@@ -1,6 +1,6 @@
 package nsteg.processors;
 
-import nsteg.Spinner;
+import nsteg.nsteg_utils.Spinner;
 
 import javax.imageio.ImageIO;
 import javax.validation.constraints.NotNull;

@@ -1,7 +1,5 @@
 package nsteg.nsteg_utils;
 
-import nsteg.Spinner;
-
 import javax.validation.constraints.NotNull;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;

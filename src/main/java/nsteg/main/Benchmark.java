@@ -1,4 +1,4 @@
-package nsteg;
+package nsteg.main;
 
 import nsteg.decoders.aud.AudDecoder;
 import nsteg.decoders.img.ImgDecoder;

@@ -1,7 +1,6 @@
 package nsteg.nsteg_utils;
 
 import com.lambdaworks.crypto.SCrypt;
-import nsteg.Spinner;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
@@ -54,11 +53,12 @@ public class Crypto {
 	 * @param aad            Associated data array (16 bytes) to prevent data tampering
 	 * @return Two dimensional byte array of size two, containing the salt bytes and the encrypted bytes, respectively
 	 */
-	public static byte[][] encrypt(@NotNull byte[] bytesToEncrypt, @NotNull byte[] aad) {
+	public static byte[][] encrypt(@NotNull byte[] bytesToEncrypt, @NotNull byte[] aad, String pass) {
 		byte[][] saltAndCiphertext = new byte[2][];
 		saltAndCiphertext[1] = bytesToEncrypt;
 
-		System.out.print("Enter the password to use: ");
+		if (pass == null)
+			System.out.print("Enter the password to use: ");
 
 		Cipher cipher;
 		byte[] encData;
@@ -70,10 +70,15 @@ public class Crypto {
 			saltAndCiphertext[0] = new byte[SALT_SIZE_BITS / Byte.SIZE]; // 64 bit salt
 			secureRandom.nextBytes(saltAndCiphertext[0]);
 
-			byte[] pass = in.nextLine().getBytes();
+			byte[] passBytes;
+			if (pass == null)
+				passBytes = in.nextLine().getBytes();
+			else
+				passBytes = pass.getBytes();
+
 			Spinner.printWithSpinner("Encrypting data... ");
-			byte[] key = SCrypt.scrypt(pass, saltAndCiphertext[0], (int) Math.pow(2, 18), 8, 8, keyLen);
-			Arrays.fill(pass, (byte) 0); // Wipe from memory
+			byte[] key = SCrypt.scrypt(passBytes, saltAndCiphertext[0], (int) Math.pow(2, 18), 8, 8, keyLen);
+			Arrays.fill(passBytes, (byte) 0); // Wipe from memory
 
 			cipher = Cipher.getInstance("AES/GCM/NoPadding");
 			cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"), new GCMParameterSpec(GCM_AAD_SIZE, iv));
@@ -106,7 +111,7 @@ public class Crypto {
 	 * @param aad            Associated data used to verify the encrypted data was not tampered with
 	 * @return Decrypted array of bytes
 	 */
-	public static byte[] decrypt(@NotNull byte[] bytesToDecrypt, @NotNull byte[] salt, @NotNull byte[] aad) {
+	public static byte[] decrypt(@NotNull byte[] bytesToDecrypt, @NotNull byte[] salt, @NotNull byte[] aad, String pass) {
 		ByteBuffer byteBuffer = ByteBuffer.wrap(bytesToDecrypt);
 		byte[] iv = new byte[AES_IV_SIZE];
 		byteBuffer.get(iv);
@@ -119,12 +124,17 @@ public class Crypto {
 		try {
 			cipher = Cipher.getInstance("AES/GCM/NoPadding");
 
-			System.out.print("\nEnter password: ");
-			byte[] pass = in.nextLine().getBytes();
+			byte[] passBytes;
+			System.out.println();
+			if (pass == null) {
+				System.out.print("Enter password: ");
+				passBytes = in.nextLine().getBytes();
+			} else
+				passBytes = pass.getBytes();
 
 			Spinner.printWithSpinner("Decrypting data... ");
-			byte[] key = SCrypt.scrypt(pass, salt, (int) Math.pow(2, 18), 8, 8, keyLen);
-			Arrays.fill(pass, (byte) 0); // Wipe from memory
+			byte[] key = SCrypt.scrypt(passBytes, salt, (int) Math.pow(2, 18), 8, 8, keyLen);
+			Arrays.fill(passBytes, (byte) 0); // Wipe from memory
 
 			cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, "AES"), new GCMParameterSpec(GCM_AAD_SIZE, iv));
 			Arrays.fill(key, (byte) 0); // Wipe from memory

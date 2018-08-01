@@ -1,6 +1,6 @@
 package nsteg.decoders;
 
-import nsteg.Spinner;
+import nsteg.nsteg_utils.Spinner;
 import nsteg.decoders.aud.AudDecoder;
 import nsteg.decoders.img.ImgDecoder;
 import nsteg.encoders.Encoder;
@@ -85,9 +85,13 @@ public abstract class Decoder {
 	 *
 	 * @param encodedMedFile Name of the media file containing the data that is to be decoded
 	 * @param outFileNames
+	 * @param encrypt
+	 * @param pass
 	 */
-	public static void decode(@NotNull String encodedMedFile, @NotNull String[] outFileNames) {
-		boolean encrypted = Crypto.offerToCrypt(false);
+	public static void decode(@NotNull String encodedMedFile, @NotNull String[] outFileNames, Boolean encrypt,
+							  String pass) {
+		if (encrypt == null)
+			encrypt = Crypto.offerToCrypt(false);
 
 		Decoder decoder = getDecoder(encodedMedFile);
 		if (decoder == null)
@@ -106,7 +110,7 @@ public abstract class Decoder {
 		int uncompFileSize = BitByteConv.bitArrayToInt(uncompFileSizeBits, false);
 
 		byte[] saltBytes = null;
-		if (encrypted)
+		if (encrypt)
 			saltBytes = decoder.readBytes(Crypto.SALT_SIZE_BITS / Byte.SIZE);
 
 		Spinner.printWithSpinner("Extracting file data from image... ");
@@ -115,8 +119,8 @@ public abstract class Decoder {
 		decoder.stopThreads();
 
 		Spinner.end();
-		if (encrypted)
-			dataBytes = Crypto.decrypt(dataBytes, saltBytes, Crypto.genAAD(uncompFileSizeBits, compFileSizeBits));
+		if (encrypt)
+			dataBytes = Crypto.decrypt(dataBytes, saltBytes, Crypto.genAAD(uncompFileSizeBits, compFileSizeBits), pass);
 
 		dataBytes = Compressor.decompress(dataBytes, uncompFileSize);
 
@@ -136,9 +140,10 @@ public abstract class Decoder {
 			}
 
 			Spinner.end();
+			System.out.println();
 			System.out.print("Data written successfully into file(s): ");
 			for (int i = 0; i < numOfFiles; i++)
-				System.out.print(i < outFileNames.length ? outFileNames[i] : "nstegDecFile" + i + ".unknown");
+				System.out.print("\"" + (i < outFileNames.length ? outFileNames[i] : "nstegDecFile" + i + ".unknown") + "\" ");
 			System.out.println("\nDone!\n");
 		} catch (IOException e) {
 			System.err.println("Could not write data to disk");

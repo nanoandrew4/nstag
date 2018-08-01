@@ -35,7 +35,7 @@
                             </descriptorRefs>
                             <archive>
                                 <manifest>
-                                    <mainClass>nsteg.Main</mainClass>
+                                    <mainClass>nsteg.main.Main</mainClass>
                                 </manifest>
                             </archive>
                         </configuration>
