@@ -9,6 +9,7 @@ import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.UnsupportedAudioFileException;
+import javax.swing.*;
 import javax.validation.constraints.NotNull;
 import java.io.File;
 import java.io.IOException;
@@ -165,8 +166,8 @@ public class AudEncoder extends Encoder {
 	}
 
 	// See abstract method for docs
-	public boolean doesFileFit(int fileSizeInBits, int LSBsToUse, boolean encrypted) {
-		long requiredBits = LSB_BITS_COUNT + (2 * SIZE_BITS_COUNT) + fileSizeInBits;
+	public boolean doesFileFit(int fileSizeInBits, int numOfFiles, int LSBsToUse, boolean encrypted) {
+		long requiredBits = LSB_BITS_COUNT + (2 * SIZE_BITS_COUNT) + fileSizeInBits + SIZE_BITS_COUNT + (SIZE_BITS_COUNT * numOfFiles);
 		if (encrypted)
 			requiredBits += Crypto.GCM_AAD_SIZE + Crypto.AES_IV_SIZE + Crypto.SALT_SIZE_BITS;
 

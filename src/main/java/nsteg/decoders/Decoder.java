@@ -84,9 +84,9 @@ public abstract class Decoder {
 	 * the user to decrypt the data provided the data has not been tampered with.
 	 *
 	 * @param encodedMedFile Name of the media file containing the data that is to be decoded
-	 * @param outFileName    Name under which to save the encoded file (include file name extension)
+	 * @param outFileNames
 	 */
-	public static void decode(@NotNull String encodedMedFile, @NotNull String outFileName) {
+	public static void decode(@NotNull String encodedMedFile, @NotNull String[] outFileNames) {
 		boolean encrypted = Crypto.offerToCrypt(false);
 
 		Decoder decoder = getDecoder(encodedMedFile);
@@ -94,6 +94,10 @@ public abstract class Decoder {
 			return;
 
 		Spinner.printWithSpinner("Extracting metadata from image... ");
+		int numOfFiles = BitByteConv.bitArrayToInt(decoder.readBits(SIZE_BITS_COUNT), true);
+		int[] fileSizes = new int[numOfFiles];
+		for (int i = 0; i < numOfFiles; i++)
+			fileSizes[i] = BitByteConv.bitArrayToInt(decoder.readBits(SIZE_BITS_COUNT), true);
 		// Read compressed and uncompressed file sizes
 		byte[] compFileSizeBits = decoder.readBits(SIZE_BITS_COUNT);
 		byte[] uncompFileSizeBits = decoder.readBits(SIZE_BITS_COUNT);
@@ -118,13 +122,24 @@ public abstract class Decoder {
 
 		try {
 			Spinner.printWithSpinner("Writing decoded data to disk... ");
-			FileOutputStream fos = new FileOutputStream(outFileName);
-			fos.write(dataBytes);
-			fos.close();
+			int byteCount = 0;
+			for (int i = 0; i < numOfFiles; i++) {
+				String fileName = i < outFileNames.length ? outFileNames[i].trim() : "nstegDecFile" + i + ".unknown";
+				FileOutputStream fos = new FileOutputStream(fileName);
+
+				byte[] fileBytes = new byte[fileSizes[i]];
+				System.arraycopy(dataBytes, byteCount, fileBytes, 0, fileBytes.length);
+				byteCount += fileBytes.length;
+
+				fos.write(fileBytes);
+				fos.close();
+			}
 
 			Spinner.end();
-			System.out.println("Data written successfully into file: \"" + outFileName + "\"");
-			System.out.println("Done!\n");
+			System.out.print("Data written successfully into file(s): ");
+			for (int i = 0; i < numOfFiles; i++)
+				System.out.print(i < outFileNames.length ? outFileNames[i] : "nstegDecFile" + i + ".unknown");
+			System.out.println("\nDone!\n");
 		} catch (IOException e) {
 			System.err.println("Could not write data to disk");
 		}

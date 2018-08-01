@@ -69,7 +69,7 @@ public abstract class Encoder {
 	/**
 	 * Number of bits used to hold the compressed/uncompressed size of the file being encoded.
 	 */
-	public final static int SIZE_BITS_COUNT = 4 * Byte.SIZE;
+	public final static int SIZE_BITS_COUNT = Integer.SIZE;
 
 	/**
 	 * Number of bits used to hold the number of least significant bits used during the encoding process.
@@ -94,11 +94,12 @@ public abstract class Encoder {
 	 * errors are printed and the encoding process will stop.
 	 *
 	 * @param fileSizeInBits Size of the file to be hidden, in bits
+	 * @param numOfFiles
 	 * @param LSBsToUse      Number of least significant bits to use during the encoding process
 	 * @param encrypted      True if encryption is to be used, false otherwise
 	 * @return True if the file will fit inside the media file, false otherwise
 	 */
-	public abstract boolean doesFileFit(int fileSizeInBits, int LSBsToUse, boolean encrypted);
+	public abstract boolean doesFileFit(int fileSizeInBits, int numOfFiles, int LSBsToUse, boolean encrypted);
 
 	// Impl specific
 	public abstract void stopThreads();
@@ -141,20 +142,16 @@ public abstract class Encoder {
 	 * encryption happens.
 	 *
 	 * @param origMediaPath Path and name to image into which to encode the data
-	 * @param fileToEncode  File to be encoded into the image
+	 * @param filesToEncode
 	 * @param outMediaName  Path and name of the desired output image (copy of the original + file data)
 	 * @param LSBsToUse     Number of least significant bits to use in each color channel. Using more bits will result
 	 *                      in a greater visual deviation from the original. Range is 1-8. Recommended is 1-3
 	 */
-	public static void encode(@NotNull String origMediaPath, @NotNull String fileToEncode, @NotNull String outMediaName, int LSBsToUse) {
-		byte[] dataBytes;
-		try {
-			Spinner.printWithSpinner("Loading file to encode... ");
-			dataBytes = Files.readAllBytes(Paths.get(fileToEncode));
-		} catch (IOException e) {
-			System.err.println("Error loading file to be hidden");
+	public static void encode(@NotNull String origMediaPath, @NotNull String[] filesToEncode, @NotNull String outMediaName, int LSBsToUse) {
+		int[] fileSizes = new int[filesToEncode.length];
+		byte[] dataBytes = loadFiles(filesToEncode, fileSizes);
+		if (dataBytes == null)
 			return;
-		}
 
 		double origByteSize = dataBytes.length;
 		dataBytes = Compressor.compress(dataBytes);
@@ -166,10 +163,10 @@ public abstract class Encoder {
 
 		// Compressed size of the data, accounting for the InitVector and AAD data bits, if encryption is to be used
 		int compSize = dataBytes.length + (encrypted ? Crypto.AES_IV_SIZE + Crypto.GCM_AAD_SIZE / Byte.SIZE : 0);
-		byte[] compFileSizeBits = BitByteConv.intToBitArray(compSize, SIZE_BITS_COUNT);
+		byte[] compFileSizeBits = BitByteConv.intToBitArray(compSize, Integer.SIZE);
 
 		Encoder encoder = getEncoder(origMediaPath, LSBsToUse);
-		if (encoder == null || !encoder.doesFileFit(dataBytes.length * Byte.SIZE, LSBsToUse, encrypted))
+		if (encoder == null || !encoder.doesFileFit(dataBytes.length * Byte.SIZE, filesToEncode.length, LSBsToUse, encrypted))
 			return;
 
 		byte[] saltBytes = null;
@@ -181,6 +178,9 @@ public abstract class Encoder {
 		}
 
 		Spinner.printWithSpinner("Encoding metadata... ");
+		encoder.encodeBits(BitByteConv.intToBitArray(filesToEncode.length, SIZE_BITS_COUNT));
+		for (int fSize : fileSizes)
+			encoder.encodeBits(BitByteConv.intToBitArray(fSize, SIZE_BITS_COUNT));
 		encoder.encodeBits(compFileSizeBits);
 		encoder.encodeBits(uncompFileSizeBits);
 
@@ -197,5 +197,27 @@ public abstract class Encoder {
 			AudioProcessor.writePCMToDisk(outMediaName, (AudEncoder) encoder);
 
 		System.out.println("Done!\n");
+	}
+
+	private static byte[] loadFiles(String[] filesToEncode, int[] fileSizes) {
+		byte[] dataBytes = {};
+		try {
+			Spinner.printWithSpinner("Loading file(s) to encode... ");
+			byte[] tmpDataBytes, tmp;
+			for (int i = 0; i < filesToEncode.length; i++) {
+				tmp = Files.readAllBytes(Paths.get(filesToEncode[i].trim()));
+				fileSizes[i] = tmp.length;
+
+				tmpDataBytes = new byte[dataBytes.length + tmp.length];
+				System.arraycopy(dataBytes, 0, tmpDataBytes, 0, dataBytes.length);
+				System.arraycopy(tmp, 0, tmpDataBytes, dataBytes.length, tmp.length);
+
+				dataBytes = tmpDataBytes;
+			}
+		} catch (IOException e) {
+			System.err.println("Error loading file(s) to be hidden");
+			return null;
+		}
+		return dataBytes;
 	}
 }

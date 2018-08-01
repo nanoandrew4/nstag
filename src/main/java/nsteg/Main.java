@@ -47,7 +47,8 @@ public class Main {
 	}
 
 	private static void encode() {
-		String origImagePath, fileToHide, outImagePath;
+		String origImagePath, outImagePath;
+		String[] filesToHide;
 
 		System.out.println("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
 		System.out.println("Please enter the filename of the image or audio file that will be used to hide a file.");
@@ -57,9 +58,10 @@ public class Main {
 		origImagePath = getMediaInputFile();
 
 		System.out.println("-------------------------------------------------------------------------------------------");
-		System.out.println("Enter the name of the file that is to be hidden.");
+		System.out.println("Enter the name of the file(s) to be hidden.");
+		System.out.println("For entering multiple files, please delimit the filenames with commas (,).");
 		System.out.print(">> ");
-		fileToHide = getFileToHide();
+		filesToHide = getFilesToHide();
 
 		System.out.println("-------------------------------------------------------------------------------------------");
 		System.out.println("Desired name for output media file, containing the hidden file, with the appropriate file extension.");
@@ -84,11 +86,12 @@ public class Main {
 		} while (bitsToUse < 1 || bitsToUse > 8);
 
 		System.out.println("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
-		Encoder.encode(origImagePath, fileToHide, outImagePath, bitsToUse);
+		Encoder.encode(origImagePath, filesToHide, outImagePath, bitsToUse);
 	}
 
 	private static void decode() {
-		String encodedImgPath, outFilePath;
+		String encodedImgPath;
+		String[] outFileNames;
 
 		System.out.println("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
 		System.out.println("Enter the filename of the image or audio file that you wish to decode data from.");
@@ -98,12 +101,13 @@ public class Main {
 		encodedImgPath = getEncodedInputFile();
 
 		System.out.println("-------------------------------------------------------------------------------------------");
-		System.out.println("Enter the filename you wish to store the decoded data under (with appropriate file extension).");
+		System.out.println("Enter the filename(s) you wish to store the decoded data under (with appropriate file extension).");
+		System.out.println("For multiple files, delimit with a comma (,) for each separate filename.");
 		System.out.print(">> ");
-		outFilePath = in.nextLine();
+		outFileNames = in.nextLine().split(",");
 
 		System.out.println("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
-		Decoder.decode(encodedImgPath, outFilePath);
+		Decoder.decode(encodedImgPath, outFileNames);
 	}
 
 	private static String getMediaInputFile() {
@@ -151,19 +155,24 @@ public class Main {
 		return file;
 	}
 
-	private static String getFileToHide() {
-		String file = null;
+	private static String[] getFilesToHide() {
+		String[] files = null;
 
+		boolean valid;
 		do {
-			if (file != null) {
-				System.err.println("File does not exist, please try again.");
+			if (files != null) {
+				System.err.println("One of the files does not exist, please try again.");
 				System.out.print(">> ");
 			}
 
-			file = in.nextLine();
-		} while (!Files.exists(Paths.get(file)));
+			files = in.nextLine().split(",");
+			valid = true;
+			for (String fName : files)
+				if (!Files.exists(Paths.get(fName.trim())))
+					valid = false;
+		} while (!valid);
 
-		return file;
+		return files;
 	}
 
 	private static String getOutMediaFile() {
