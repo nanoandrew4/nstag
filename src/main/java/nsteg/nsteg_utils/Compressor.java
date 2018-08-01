@@ -32,7 +32,9 @@ public class Compressor {
 
 		Spinner.end();
 		System.out.println(
-				"Compressed data by " + String.format("%.2f", ((bytes.length - baos.size()) / (double) bytes.length) * 100.0) + "%"
+				"Compressed data by " + String.format(
+						"%.2f", ((bytes.length - baos.size()) / (double) bytes.length) * 100.0
+				) + "%"
 		);
 
 		return baos.size() < bytes.length ? baos.toByteArray() : bytes;
@@ -52,8 +54,7 @@ public class Compressor {
 			return compBytes;
 
 		Spinner.end();
-		System.out.println();
-		Spinner.printWithSpinner("Decompressing data... ");
+		Spinner.printWithSpinner("\nDecompressing data... ");
 
 		ByteArrayInputStream bais = new ByteArrayInputStream(compBytes);
 		InflaterInputStream iis = new InflaterInputStream(bais, new Inflater(true));

@@ -7,9 +7,17 @@ import nsteg.nsteg_utils.FileType;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
+/**
+ * Class for parsing command line arguments, basically non-interactive mode.
+ */
 public class CLIParser {
 	private static FileType fileType;
 
+	/**
+	 * Determines what will be done with the arguments passed, and passes them on to the appropriate method.
+	 *
+	 * @param args Arguments to parse
+	 */
 	static void parse(String[] args) {
 		fileType = FileType.UNKNOWN;
 		if (args.length == 1 && "--help".equalsIgnoreCase(args[0]))
@@ -19,13 +27,20 @@ public class CLIParser {
 		else if (args.length >= 5 && "-d".equals(args[0]))
 			decode(args);
 		else
-			System.err.println("Input is not valid. For help on running the program from the command line, use the --help flag");
+			System.err.println("Input is not valid. For help on running the program from the command line, use the " +
+					"--help flag");
 	}
 
 	private static void displayHelp() {
-
+		// TODO
 	}
 
+	/**
+	 * Parses the required arguments from the ones provided by Main, and then attempts to encode with the variables
+	 * given.
+	 *
+	 * @param args Arguments to parse
+	 */
 	private static void encode(String[] args) {
 		String mediaInputFile = "", mediaOutputFile = "", pass = null;
 		String[] filesToHide = {};
@@ -84,10 +99,19 @@ public class CLIParser {
 			}
 		}
 
-		System.out.println();
-		Encoder.encode(mediaInputFile, filesToHide, mediaOutputFile, LSBsToUse, encrypt, pass);
+		if (mediaInputFile.length() > 0 && mediaOutputFile.length() > 0 && filesToHide.length == 0 && LSBsToUse > 0) {
+			System.out.println();
+			Encoder.encode(mediaInputFile, filesToHide, mediaOutputFile, LSBsToUse, encrypt, pass);
+		} else
+			System.err.println("Arguments missing. For help, please use the --help flag. Exiting.");
 	}
 
+	/**
+	 * Parses the required arguments from the ones provided by Main, and then attempts to decode with the variables
+	 * given.
+	 *
+	 * @param args Arguments to parse
+	 */
 	private static void decode(String[] args) {
 		String encodedInputFile = "", pass = null;
 		String[] filesToDecode = {};
@@ -99,7 +123,8 @@ public class CLIParser {
 				String fileExt = fNameSplit[fNameSplit.length - 1];
 				fileType = FileType.getFileType(fileExt);
 
-				if (fileType == FileType.UNKNOWN || (fileType == FileType.IMAGE && !Encoder.outImgFormats.contains(fileExt))
+				if (fileType == FileType.UNKNOWN
+						|| (fileType == FileType.IMAGE && !Encoder.outImgFormats.contains(fileExt))
 						|| (fileType == FileType.AUDIO && !Encoder.outAudFormats.contains(fileExt))) {
 					System.err.println("Input media file is invalid, please see supported file types. Exiting.");
 					return;
@@ -117,7 +142,10 @@ public class CLIParser {
 			}
 		}
 
-		System.out.println();
-		Decoder.decode(encodedInputFile, filesToDecode, encrypt, pass);
+		if (encodedInputFile.length() > 0 && filesToDecode.length > 0) {
+			System.out.println();
+			Decoder.decode(encodedInputFile, filesToDecode, encrypt, pass);
+		} else
+			System.err.println("Arguments missing. For help, please use the --help flag. Exiting.");
 	}
 }

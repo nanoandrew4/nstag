@@ -16,7 +16,7 @@ import java.io.IOException;
 
 /**
  * Abstract class declaring the methods any decoder implementation must have. Also handles initializing the right decoder
- * when asked to decode data by Main, and running the whole higher level part of the decoding process.
+ * when asked to decode data by Main or CLIParser, and running the whole higher level part of the decoding process.
  */
 public abstract class Decoder {
 
@@ -74,19 +74,27 @@ public abstract class Decoder {
 
 		Spinner.end();
 
-		if (decoder == null) // Should never happen, Main checks inputs
+		if (decoder == null) // Should never happen, Main and CLIParser checks inputs
 			System.err.println("File format not supported.");
 		return decoder;
 	}
 
 	/**
-	 * Decodes a file from a media file that was encoded using this program. If file requires decryption, it also allows
-	 * the user to decrypt the data provided the data has not been tampered with.
+	 * Decodes file(s) from a media file that was encoded using this program. If the file(s) requires decryption, it
+	 * also allows the user to decrypt them, provided the data has not been tampered with.
 	 *
 	 * @param encodedMedFile Name of the media file containing the data that is to be decoded
-	 * @param outFileNames
-	 * @param encrypt
-	 * @param pass
+	 * @param outFileNames   Array of strings containing the desired names for the file(s) that will be decoded. The
+	 *                       ordering of the filenames should be the same as during the encoding process. If there are
+	 *                       more files than there are filenames, the files will be written to the disk in the following
+	 *                       format: nstegDecFile[iteration-num].unknown
+	 * @param encrypt        True to encrypt the file(s), false otherwise. May be null, in which case the user will
+	 *                       be asked if they want to encrypt the file(s) or not. This argument exists to allow the
+	 *                       program to be non-interactive, which is employed by CLIParser
+	 * @param pass           Password to use for encryption. This field may be null, in which case the Crypto.encrypt()
+	 *                       method will prompt the user for a password. Nulling this field is the safer approach, since
+	 *                       it means the password remains in memory for a much shorter period of time. This argument
+	 *                       exists to allow the CLIParser to pass a password in, if the user chooses
 	 */
 	public static void decode(@NotNull String encodedMedFile, @NotNull String[] outFileNames, Boolean encrypt,
 							  String pass) {
@@ -99,15 +107,17 @@ public abstract class Decoder {
 
 		Spinner.printWithSpinner("Extracting metadata from image... ");
 		int numOfFiles = BitByteConv.bitArrayToInt(decoder.readBits(SIZE_BITS_COUNT), true);
-		int[] fileSizes = new int[numOfFiles];
-		for (int i = 0; i < numOfFiles; i++)
-			fileSizes[i] = BitByteConv.bitArrayToInt(decoder.readBits(SIZE_BITS_COUNT), true);
-		// Read compressed and uncompressed file sizes
-		byte[] compFileSizeBits = decoder.readBits(SIZE_BITS_COUNT);
-		byte[] uncompFileSizeBits = decoder.readBits(SIZE_BITS_COUNT);
 
-		int compFileSize = BitByteConv.bitArrayToInt(compFileSizeBits, false);
-		int uncompFileSize = BitByteConv.bitArrayToInt(uncompFileSizeBits, false);
+		int[] fileSizes = new int[numOfFiles];
+		int uncompFilesSize = 0;
+		for (int i = 0; i < numOfFiles; i++)
+			uncompFilesSize += fileSizes[i] = BitByteConv.bitArrayToInt(decoder.readBits(SIZE_BITS_COUNT), true);
+
+		// Read compressed size of the file(s) contained in the media file
+		byte[] compFilesSizeBits = decoder.readBits(SIZE_BITS_COUNT);
+		byte[] uncompFilesSizeBits = BitByteConv.intToBitArray(uncompFilesSize, Integer.SIZE);
+
+		int compFilesSize = BitByteConv.bitArrayToInt(compFilesSizeBits, false);
 
 		byte[] saltBytes = null;
 		if (encrypt)
@@ -115,14 +125,14 @@ public abstract class Decoder {
 
 		Spinner.printWithSpinner("Extracting file data from image... ");
 		// Read compressed bytes, decrypt if necessary, then decompress
-		byte[] dataBytes = decoder.readBytes(compFileSize);
+		byte[] dataBytes = decoder.readBytes(compFilesSize);
 		decoder.stopThreads();
 
 		Spinner.end();
 		if (encrypt)
-			dataBytes = Crypto.decrypt(dataBytes, saltBytes, Crypto.genAAD(uncompFileSizeBits, compFileSizeBits), pass);
+			dataBytes = Crypto.decrypt(dataBytes, saltBytes, Crypto.genAAD(uncompFilesSizeBits, compFilesSizeBits), pass);
 
-		dataBytes = Compressor.decompress(dataBytes, uncompFileSize);
+		dataBytes = Compressor.decompress(dataBytes, uncompFilesSize);
 
 		try {
 			Spinner.printWithSpinner("Writing decoded data to disk... ");
@@ -140,13 +150,12 @@ public abstract class Decoder {
 			}
 
 			Spinner.end();
-			System.out.println();
-			System.out.print("Data written successfully into file(s): ");
+			System.out.print("\nData written successfully into file(s): ");
 			for (int i = 0; i < numOfFiles; i++)
 				System.out.print("\"" + (i < outFileNames.length ? outFileNames[i] : "nstegDecFile" + i + ".unknown") + "\" ");
 			System.out.println("\nDone!\n");
 		} catch (IOException e) {
-			System.err.println("Could not write data to disk");
+			System.err.println("Could not write data to disk.");
 		}
 	}
 }

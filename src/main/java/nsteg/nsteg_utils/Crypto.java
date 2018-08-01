@@ -51,6 +51,9 @@ public class Crypto {
 	 *
 	 * @param bytesToEncrypt Byte array to encrypt
 	 * @param aad            Associated data array (16 bytes) to prevent data tampering
+	 * @param pass           Password to use for encryption. May be null, in which case this method will prompt the user
+	 *                       for a password. Nulling this field is the safer approach, since the password remains in
+	 *                       memory for a much shorter period of time
 	 * @return Two dimensional byte array of size two, containing the salt bytes and the encrypted bytes, respectively
 	 */
 	public static byte[][] encrypt(@NotNull byte[] bytesToEncrypt, @NotNull byte[] aad, String pass) {
@@ -109,6 +112,9 @@ public class Crypto {
 	 * @param bytesToDecrypt Array of encrypted bytes to be decrypted
 	 * @param salt           Salt used to hash the password
 	 * @param aad            Associated data used to verify the encrypted data was not tampered with
+	 * @param pass           Password to use for encryption. May be null, in which case this method will prompt the user
+	 *                       for a password. Nulling this field is the safer approach, since the password remains in
+	 *                       memory for a much shorter period of time
 	 * @return Decrypted array of bytes
 	 */
 	public static byte[] decrypt(@NotNull byte[] bytesToDecrypt, @NotNull byte[] salt, @NotNull byte[] aad, String pass) {
