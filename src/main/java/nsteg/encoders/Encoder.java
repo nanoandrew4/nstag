@@ -54,8 +54,6 @@ public abstract class Encoder {
 	static {
 		String[] inImgSuffixes = ImageIO.getReaderFileSuffixes();
 		inImgFormats.addAll(Arrays.asList(inImgSuffixes));
-		inImgFormats.add("tif");
-		inImgFormats.add("tiff");
 
 		String[] outImgSuffixes = {"png", "bmp", "tif", "tiff"};
 		outImgFormats.addAll(Arrays.asList(outImgSuffixes));
