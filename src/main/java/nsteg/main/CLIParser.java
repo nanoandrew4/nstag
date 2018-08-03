@@ -100,7 +100,7 @@ public class CLIParser {
 				"\t        Setting this field carries a security risk, since the password\n" +
 				"\t        remains in memory longer than if this field was not set, in \n" +
 				"\t        which case the program will prompt it right before it is\n" +
-				"\t        necessary, and wipe it from memory."
+				"\t        necessary, and wipe it from memory once the encryption is done."
 		);
 		System.out.println("--------------------------------------------------------------------------------");
 		System.out.println(

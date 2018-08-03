@@ -27,6 +27,8 @@ public class ImgEncoder extends Encoder {
 	private int nextChanToWrite; // Next channel, at current LSB position in current pixel, to be written to
 	private int currLSB; // Current least significant bit position, for all channels, at the current pixel
 
+	private int width, LSBsToUse = 1, currBit, numOfChannels;
+
 	/**
 	 * Initializes an ImgEncoder instance with the given image, determines the number of channels in the image,
 	 * and encodes the number of LSBs that will be used in each channel into the image.
@@ -36,9 +38,12 @@ public class ImgEncoder extends Encoder {
 	 */
 	public ImgEncoder(@NotNull BufferedImage origImg, int LSBsToUse) {
 		img = origImg;
-		int numOfChannels = img.getColorModel().hasAlpha() ? 4 : 3;
+		numOfChannels = img.getColorModel().hasAlpha() ? 4 : 3;
+
+		width = img.getWidth();
 
 		initThreads(numOfChannels, LSBsToUse);
+		this.LSBsToUse = LSBsToUse;
 
 		// Use two pixels for LSBsToUse encoding, so restart encoding at 3rd pixel, if image only has three channels
 		if (numOfChannels == 3) {
@@ -49,7 +54,8 @@ public class ImgEncoder extends Encoder {
 
 	// See abstract method declaration
 	public boolean doesFileFit(int fileSizeInBits, int numOfFiles, int LSBsToUse, boolean encrypted) {
-		long requiredBits = LSB_BITS_COUNT + (2 * SIZE_BITS_COUNT) + fileSizeInBits + SIZE_BITS_COUNT + (SIZE_BITS_COUNT * numOfFiles);
+		long requiredBits = LSB_BITS_COUNT + (2 * SIZE_BITS_COUNT) + fileSizeInBits + SIZE_BITS_COUNT +
+							(SIZE_BITS_COUNT * numOfFiles);
 		if (encrypted)
 			requiredBits += Crypto.GCM_AAD_SIZE + Crypto.AES_IV_SIZE + Crypto.SALT_SIZE_BITS;
 
@@ -87,17 +93,66 @@ public class ImgEncoder extends Encoder {
 	 */
 
 	public void encodeBits(@NotNull byte[] bitsToEncode) {
-		for (int i = 0; i < encThreads.length; i = (i + 1) % encThreads.length) {
-			if (!encThreads[i].isActive()) {
-				ImgEndState imgEndState = encThreads[i].submitJob(bitsToEncode, x, y, currLSB, nextChanToWrite);
-				x = imgEndState.endX;
-				y = imgEndState.endY;
-				currLSB = imgEndState.endLSB;
-				nextChanToWrite = imgEndState.endChan;
-				break;
-			} else
-				sleep(10);
+		currBit = 0;
+		for (; currBit < bitsToEncode.length; ) {
+			for (; currBit < bitsToEncode.length; ) {
+				img.setRGB(x, y, insertDataToPixel(img.getRGB(x, y), bitsToEncode));
+
+				// If all data has been read from the pixel, move to next one
+				if ((currLSB %= LSBsToUse) == 0 && nextChanToWrite == 0) {
+					if (++x == width) {
+						x = 0;
+						y++;
+					}
+				}
+			}
 		}
+	}
+
+	private int insertDataToPixel(int orig, byte[] bitsToWrite) {
+		byte[] aBits = null;
+		if (numOfChannels == 4)
+			aBits = BitByteConv.intToBitArray(((orig >> 24) & 0xff), Byte.SIZE); // Get original alpha bits
+		byte[] rBits = BitByteConv.intToBitArray(((orig >> 16) & 0xff), Byte.SIZE); // Get original red bits
+		byte[] gBits = BitByteConv.intToBitArray(((orig >> 8) & 0xff), Byte.SIZE); // Get original green bits
+		byte[] bBits = BitByteConv.intToBitArray(orig & 0xff, Byte.SIZE); // Get original blue bits
+
+		// Mod bit values, in order to encode bits from the buffer. Read method doc for more info
+		for (; currLSB < LSBsToUse && currBit < bitsToWrite.length; ) {
+			if (nextChanToWrite == 0) {
+				rBits[rBits.length - 1 - currLSB] = bitsToWrite[currBit++];
+				nextChanToWrite = 1;
+			}
+
+			if (currBit < bitsToWrite.length && nextChanToWrite == 1) {
+				gBits[gBits.length - 1 - currLSB] = bitsToWrite[currBit++];
+				nextChanToWrite = 2;
+			} else if (currBit >= bitsToWrite.length)
+				break;
+
+			if (currBit < bitsToWrite.length && nextChanToWrite == 2) {
+				bBits[bBits.length - 1 - currLSB] = bitsToWrite[currBit++];
+				// If image has alpha channel, continue to it, otherwise change LSB and restart
+				nextChanToWrite = 3 % numOfChannels;
+				if (numOfChannels == 3) // If no alpha channel, go on to next LSB, if possible
+					currLSB++;
+			} else if (currBit >= bitsToWrite.length)
+				break;
+
+			if (nextChanToWrite == 3 && currBit < bitsToWrite.length) {
+				aBits[aBits.length - 1 - currLSB] = bitsToWrite[currBit++];
+				nextChanToWrite = 0;
+				currLSB++;
+			}
+		}
+
+		// Return 32-bit int representing the color of the pixel, with the encoded bits from the buffer
+		if (numOfChannels == 3)
+			return (BitByteConv.bitArrayToInt(rBits, false) << 16) |
+				   (BitByteConv.bitArrayToInt(gBits, false) << 8) | BitByteConv.bitArrayToInt(bBits, false);
+		else
+			return (BitByteConv.bitArrayToInt(aBits, false) << 24) | (BitByteConv.bitArrayToInt(rBits, false) << 16)
+				   | (BitByteConv.bitArrayToInt(gBits, false) << 8) | BitByteConv.bitArrayToInt(bBits, false);
 	}
 
 	/**
@@ -108,18 +163,31 @@ public class ImgEncoder extends Encoder {
 	 */
 	public void encodeBytes(@NotNull byte[] bytesToEncode) {
 		int currByte = 0;
-		int bytesSize = bytesToEncode.length;
-		for (; currByte < bytesToEncode.length; ) {
-			int bytesPerThread = bytesToEncode.length / encThreads.length;
-			bytesPerThread = (bytesSize < bytesPerThread ? bytesSize : bytesPerThread);
-			byte[] bits = new byte[bytesPerThread * Byte.SIZE];
-			for (int i = 0; i < bytesPerThread; i++)
-				System.arraycopy(BitByteConv.intToBitArray(bytesToEncode[currByte++], Byte.SIZE), 0, bits, i * Byte.SIZE, Byte.SIZE);
+		int remainingBytes = bytesToEncode.length;
+		int approxBytesPerThread = bytesToEncode.length / encThreads.length + 1;
+		while (remainingBytes > 0) {
+			// Number of bytes that the thread should write to the file byte array
+			approxBytesPerThread = approxBytesPerThread < remainingBytes ? approxBytesPerThread : remainingBytes;
 
-			encodeBits(bits);
+			for (int t = 0; t < encThreads.length; t = (t + 1) % encThreads.length) {
+				if (!encThreads[t].isActive()) {
+					ImgEndState endState = encThreads[t].submitJob(bytesToEncode, currByte, approxBytesPerThread, x,
+																   y, currLSB, nextChanToWrite);
+					x = endState.endX;
+					y = endState.endY;
+					currLSB = endState.endLSB;
+					nextChanToWrite = endState.endChan;
+					break;
+				} else if (t + 1 == encThreads.length)
+					sleep(5);
+			}
 
-			bytesSize -= bytesPerThread;
+			currByte += approxBytesPerThread;
+			remainingBytes -= approxBytesPerThread;
 		}
+
+//		for (byte b : bytesToEncode)
+//			encodeBits(BitByteConv.intToBitArray(b, Byte.SIZE));
 	}
 
 	/**
@@ -137,12 +205,12 @@ public class ImgEncoder extends Encoder {
 
 		encodeBits(BitByteConv.intToBitArray(LSBsToUse, 4));
 
-		for (int t = 0; t < encThreads.length; ) {
-			if (!encThreads[t].isActive())
-				t++;
-			else
-				sleep(10);
-		}
+//		for (int t = 0; t < encThreads.length; ) {
+//			if (!encThreads[t].isActive())
+//				t++;
+//			else
+//				sleep(10);
+//		}
 
 		for (ImgEncoderThread t : encThreads)
 			t.setLSBsToUse(LSBsToUse);

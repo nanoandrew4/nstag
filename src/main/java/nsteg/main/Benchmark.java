@@ -27,7 +27,7 @@ public class Benchmark {
 	}
 
 	private static void printEncDecSpeed(long start, long finish, int dataLen, int bpc, boolean encode) {
-		double speed = (dataLen / (1 << 20)) / ((finish - start) / 1000.0);
+		double speed = ((double) dataLen / (1 << 20)) / ((finish - start) / 1000.0);
 		System.out.println((encode ? "Encoding" : "Decoding") + " speed using " + bpc + " bits per channel is: " +
 				String.format("%.2f", speed) + " MiB/s"
 		);

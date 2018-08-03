@@ -42,7 +42,7 @@ public class nStegThread extends Thread {
 	 */
 	public void stopThread() {
 		while (isActive())
-			sleepMillis(10);
+			sleepMillis(1);
 
 		stopRunning();
 		try {

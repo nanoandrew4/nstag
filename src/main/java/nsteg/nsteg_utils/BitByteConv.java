@@ -25,8 +25,9 @@ public abstract class BitByteConv {
 		 * achieved with the modulo operation, by adding one and mod 2, the bits will be opposite what they should be,
 		 * which is the desired output when a number is negative.
 		 */
+		int off = neg ? 1 : 0;
 		for (int i = 0; i < numOfBits; i++) {
-			bits[numOfBits - 1 - i] = (byte) ((b + (neg ? 1 : 0)) % 2);
+			bits[numOfBits - 1 - i] = (byte) ((b + off) % 2);
 			b >>>= 1;
 		}
 		return bits;
@@ -43,11 +44,11 @@ public abstract class BitByteConv {
 	 */
 	public static int bitArrayToInt(@NotNull byte[] bits, boolean signed) {
 		boolean neg = signed && bits[0] == 1;
-		int b = neg ? -(1 << bits.length - 1) : 0;
-		for (int i = (neg ? 1 : 0); i < bits.length; i++)
-			if (bits[i] != 0)
-				b += (1 << bits.length - 1 - i);
+		int i = neg ? -(1 << bits.length - 1) : 0;
+		for (int b = (neg ? 1 : 0); b < bits.length; b++)
+			if (bits[b] != 0)
+				i += (1 << bits.length - 1 - b);
 
-		return b;
+		return i;
 	}
 }
