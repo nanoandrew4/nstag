@@ -13,8 +13,9 @@ import java.awt.image.BufferedImage;
  * this class.
  */
 public class ImgEncoderThread extends ImgThread {
-	private byte[] fileBytes, currByteBits;
-	private int currLSB, nextChanToWrite, currBit;
+	private PxBitModder bitModder;
+
+	private byte[] fileBytes;
 	private int currFileArrByte, endByte;
 
 	/*
@@ -83,7 +84,7 @@ public class ImgEncoderThread extends ImgThread {
 	public void run() {
 		while (running) {
 			if (active) {
-				currByteBits = new byte[(endByte - currFileArrByte) * Byte.SIZE];
+				byte[] currByteBits = new byte[(endByte - currFileArrByte) * Byte.SIZE];
 				int bitPos = 0;
 				for (; currFileArrByte < endByte; currFileArrByte++) {
 					System.arraycopy(BitByteConv.intToBitArray(fileBytes[currFileArrByte], Byte.SIZE), 0,
@@ -92,22 +93,25 @@ public class ImgEncoderThread extends ImgThread {
 				}
 
 				boolean needsLocking;
-				for (int y = sy; currBit < currByteBits.length; ) {
-					for (int x = sx; currBit < currByteBits.length; ) {
-						needsLocking = currBit < Byte.SIZE || currBit > currByteBits.length - Byte.SIZE;
-						if (needsLocking)
-							waitForLock(x, y);
-						img.setRGB(x, y, insertDataToPixel(img.getRGB(x, y)));
-						if (needsLocking)
-							release();
+				int y = sy, x = sx;
 
-						// If all data has been read from the pixel, move to next one
-						if (currLSB == LSBsToUse) {
-							currLSB = 0;
-							if (++x == width) {
-								x = 0;
-								y++;
-							}
+				while (bitModder.getCurrBit() < currByteBits.length) {
+					needsLocking = (
+							bitModder.getCurrBit() < Byte.SIZE ||
+							bitModder.getCurrBit() > currByteBits.length - Byte.SIZE
+					);
+					if (needsLocking)
+						waitForLock(x, y);
+					img.setRGB(x, y, bitModder.insertDataToPixel(img.getRGB(x, y), currByteBits));
+					if (needsLocking)
+						release();
+
+					// If all data has been read from the pixel, move to next one
+					if (bitModder.getCurrLSB() == LSBsToUse) {
+						bitModder.setCurrLSB(0);
+						if (++x == width) {
+							x = 0;
+							y++;
 						}
 					}
 				}
@@ -116,6 +120,7 @@ public class ImgEncoderThread extends ImgThread {
 			} else
 				sleepMillis(5);
 		}
+
 	}
 
 	/**
@@ -143,11 +148,9 @@ public class ImgEncoderThread extends ImgThread {
 		this.fileBytes = fileBytes;
 		this.sx = sx;
 		this.sy = sy;
-		this.currLSB = sLSB;
-		this.nextChanToWrite = nextChanToWrite;
 		this.currFileArrByte = sByte;
 		this.endByte = sByte + bytesToWrite;
-		currBit = 0; // Start reading fileBytes from start
+		bitModder = new PxBitModder(numOfChannels, LSBsToUse, sLSB, nextChanToWrite);
 
 		active = true;
 
@@ -176,70 +179,5 @@ public class ImgEncoderThread extends ImgThread {
 								   numOfChannels)) % LSBsToUse;
 
 		return endState;
-	}
-
-	/**
-	 * Writes currByteBits to the various LSBs in the various channels the current pixel being worked on has. Because
-	 * RGB
-	 * images
-	 * have 3 channels, encoding data usually means that you will finish encoding before exhausting all the LSBs in all
-	 * the channels of the last necessary pixel.
-	 * <p><br>
-	 * If one byte (8 currByteBits) were encoded in an RGB image, we would need 3 pixels to hold the 8 currByteBits
-	 * (assuming we
-	 * used one LSB), but would have one bit left, in which no data would be written, which would be a waste, aside
-	 * from complicating the decoding process. Therefore, this method remembers where it left off, and will continue
-	 * encoding at the next free LSB; in the case of the previous example, it will start writing whatever data is to
-	 * be encoded next at the third channel of the third pixel, meaning that all the data is encoded sequentially,
-	 * with no breaks. So efficient :D
-	 *
-	 * @param orig Original 32-bit argb int representing the color of the pixel
-	 * @return Modified 32-bit argb int representing the new color of the pixel
-	 */
-	private int insertDataToPixel(int orig) {
-		byte[] aBits = null;
-		if (numOfChannels == 4)
-			aBits = BitByteConv.intToBitArray(((orig >> 24) & 0xff), Byte.SIZE); // Get original alpha currByteBits
-		byte[] rBits = BitByteConv.intToBitArray(((orig >> 16) & 0xff), Byte.SIZE); // Get original red currByteBits
-		byte[] gBits = BitByteConv.intToBitArray(((orig >> 8) & 0xff), Byte.SIZE); // Get original green currByteBits
-		byte[] bBits = BitByteConv.intToBitArray(orig & 0xff, Byte.SIZE); // Get original blue currByteBits
-		// Mod bit values, in order to encode currByteBits from the buffer. Read method doc for more info
-		for (; currLSB < LSBsToUse && currBit < currByteBits.length; ) {
-			if (nextChanToWrite == 0) {
-				rBits[rBits.length - 1 - currLSB] = currByteBits[currBit++];
-				nextChanToWrite = 1;
-			}
-
-			if (currBit < currByteBits.length && nextChanToWrite == 1) {
-				gBits[gBits.length - 1 - currLSB] = currByteBits[currBit++];
-				nextChanToWrite = 2;
-			} else if (currBit >= currByteBits.length)
-				break;
-
-			if (currBit < currByteBits.length && nextChanToWrite == 2) {
-				bBits[bBits.length - 1 - currLSB] = currByteBits[currBit++];
-				// If image has alpha channel, continue to it, otherwise change LSB and restart
-				nextChanToWrite = numOfChannels == 3 ? 0 : 3;
-				if (numOfChannels == 3) { // If no alpha channel, go on to next LSB, if possible
-					currLSB++;
-					continue;
-				}
-			} else if (currBit >= currByteBits.length)
-				break;
-
-			if (nextChanToWrite == 3 && currBit < currByteBits.length) {
-				aBits[aBits.length - 1 - currLSB] = currByteBits[currBit++];
-				nextChanToWrite = 0;
-				currLSB++;
-			}
-		}
-
-		// Return 32-bit int representing the color of the pixel, with the encoded currByteBits from the buffer
-		if (numOfChannels == 3)
-			return (BitByteConv.bitArrayToInt(rBits, false) << 16) |
-				   (BitByteConv.bitArrayToInt(gBits, false) << 8) | BitByteConv.bitArrayToInt(bBits, false);
-		else
-			return (BitByteConv.bitArrayToInt(aBits, false) << 24) | (BitByteConv.bitArrayToInt(rBits, false) << 16)
-				   | (BitByteConv.bitArrayToInt(gBits, false) << 8) | BitByteConv.bitArrayToInt(bBits, false);
 	}
 }
