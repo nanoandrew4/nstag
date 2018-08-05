@@ -15,15 +15,18 @@ import java.awt.image.BufferedImage;
 public class ImgEncoderThread extends ImgThread {
 	private PxBitModder bitModder;
 
-	private byte[] fileBytes;
+	private byte[] filesBytes;
 	private int currFileArrByte, endByte;
 
-	/*
-	 * Used to prevent threads from reading and writing from the same pixel at the same time, otherwise data may be
-	 * lost
-	 */
+	// Used to prevent race conditions between threads.
 	private static int[][] threadPixPos = new int[Runtime.getRuntime().availableProcessors()][2];
 	private int threadID;
+
+	static {
+		for (int j = 0; j < 2; j++)
+			for (int i = 0; i < threadPixPos.length; i++)
+				threadPixPos[i][j] = -1;
+	}
 
 	/**
 	 * Initializes a thread, and assigns the image that will be worked on, as well as setting up the thread safety
@@ -32,16 +35,11 @@ public class ImgEncoderThread extends ImgThread {
 	 * @param img           BufferedImage object to encode the data to
 	 * @param numOfChannels Number of channels in the BufferedImage
 	 * @param threadID      ID for the thread safety mechanism, number 0-availableProcessors. Use iteration count as
-	 *                      thread ID
-	 *                      when initializing the threads in another class
+	 *                      thread ID  when initializing the threads in another class
 	 */
 	ImgEncoderThread(@NotNull BufferedImage img, int numOfChannels, int threadID) {
 		super(img, numOfChannels);
 		this.threadID = threadID;
-
-		for (int j = 0; j < 2; j++)
-			for (int i = 0; i < threadPixPos.length; i++)
-				threadPixPos[i][j] = -1;
 	}
 
 	/**
@@ -84,22 +82,25 @@ public class ImgEncoderThread extends ImgThread {
 	public void run() {
 		while (running) {
 			if (active) {
+				// Create bit array out of the bytes that are to be encoded, for easy insertion
 				byte[] currByteBits = new byte[(endByte - currFileArrByte) * Byte.SIZE];
 				int bitPos = 0;
 				for (; currFileArrByte < endByte; currFileArrByte++) {
-					System.arraycopy(BitByteConv.intToBitArray(fileBytes[currFileArrByte], Byte.SIZE), 0,
+					System.arraycopy(BitByteConv.intToBitArray(filesBytes[currFileArrByte], Byte.SIZE), 0,
 									 currByteBits, bitPos, Byte.SIZE);
 					bitPos += Byte.SIZE;
 				}
 
+				/*
+				 * Determines if the pixel should be locked to prevent race conditions. Only necessary when working on
+				 * the first and last byte.
+				 */
 				boolean needsLocking;
 				int y = sy, x = sx;
 
 				while (bitModder.getCurrBit() < currByteBits.length) {
-					needsLocking = (
-							bitModder.getCurrBit() < Byte.SIZE ||
-							bitModder.getCurrBit() > currByteBits.length - Byte.SIZE
-					);
+					needsLocking = (bitModder.getCurrBit() < Byte.SIZE ||
+									bitModder.getCurrBit() > currByteBits.length - Byte.SIZE);
 					if (needsLocking)
 						waitForLock(x, y);
 					img.setRGB(x, y, bitModder.insertDataToPixel(img.getRGB(x, y), currByteBits));
@@ -120,7 +121,6 @@ public class ImgEncoderThread extends ImgThread {
 			} else
 				sleepMillis(5);
 		}
-
 	}
 
 	/**
@@ -128,24 +128,25 @@ public class ImgEncoderThread extends ImgThread {
 	 * returned containing where the encoding process this thread will carry out will end, so that ImgEncoder can
 	 * submit more jobs without having to wait for this one to finish.
 	 *
-	 * @param fileBytes
-	 * @param sByte
-	 * @param bytesToWrite
+	 * @param filesBytes      Byte array that was passed through the encodeBytes() method. Each thread will write
+	 *                        the bytes that correspond to it
+	 * @param sByte           Byte position to start fetching data for encoding in the filesBytes array
+	 * @param bytesToWrite    Number of bytes this thread should encode into the image
 	 * @param sx              Starting 'x' coordinate in the image
 	 * @param sy              Starting 'y' coordinate in the image
 	 * @param sLSB            Starting least significant bit position
 	 * @param nextChanToWrite First channel to write to
-	 * @return endState instance containing ending positions of the starting values passed, so that jobs can quickly
+	 * @return ImgEndState instance containing ending positions of the starting values passed, so that jobs can quickly
 	 * be submitted to other threads, without having to wait for this one to finish
 	 */
-	ImgEndState submitJob(@NotNull byte[] fileBytes, int sByte, int bytesToWrite, int sx, int sy, int sLSB,
+	ImgEndState submitJob(@NotNull byte[] filesBytes, int sByte, int bytesToWrite, int sx, int sy, int sLSB,
 						  int nextChanToWrite) {
 		if (active) {
 			System.err.println("Thread was busy while attempting to submit job!");
 			return null;
 		}
 
-		this.fileBytes = fileBytes;
+		this.filesBytes = filesBytes;
 		this.sx = sx;
 		this.sy = sy;
 		this.currFileArrByte = sByte;
@@ -154,14 +155,12 @@ public class ImgEncoderThread extends ImgThread {
 
 		active = true;
 
-		int bitsToWrite = bytesToWrite * Byte.SIZE;
 		/*
 		 * The following calculations to determine end positions may seem a bit obscure, but can be quickly worked out
 		 * on paper. The XY end coordinates of the last pixel written to can be simply calculated by looking at how
-		 * many currByteBits each pixel can take, and calculating the offset based on the number of currByteBits to
-		 * write. The X coord
-		 * requires an extra step, in case that the LSB wraps around, an extra pixel is required, which is what the
-		 * second statement dealing with endX does.
+		 * many bits each pixel can take, and calculating the offset based on the number of currByteBits to write.
+		 * The X coord requires an extra step, in case that the LSB wraps around, an extra pixel is required, which
+		 * is what the second statement dealing with endX does.
 		 *
 		 * The end channel is also fairly straightforward, since the channel simply loops around, which a modulus
 		 * operation lets us know where the constant looping through the possible channels will end.
@@ -170,13 +169,13 @@ public class ImgEncoderThread extends ImgThread {
 		 * number of times that the available channels will be cycled through in order to encode the data, then adding
 		 * that to the initial starting LSB, and using the modulo operator to get the final LSB.
 		 */
-		endState.endX = (sx + (bitsToWrite / (LSBsToUse * numOfChannels))) % width;
-		endState.endX += (sLSB + ((nextChanToWrite + (bitsToWrite % (LSBsToUse * numOfChannels))) /
-								  numOfChannels)) / LSBsToUse;
-		endState.endY = sy + ((sx + (bitsToWrite / (LSBsToUse * numOfChannels))) / width);
+		int bitsToWrite = bytesToWrite * Byte.SIZE;
+		int bitsPerPixel = LSBsToUse * numOfChannels;
+		endState.endX = (sx + (bitsToWrite / bitsPerPixel)) % width;
+		endState.endX += (sLSB + ((nextChanToWrite + (bitsToWrite % bitsPerPixel)) / numOfChannels)) / LSBsToUse;
+		endState.endY = sy + ((sx + (bitsToWrite / bitsPerPixel)) / width);
 		endState.endChan = (nextChanToWrite + bitsToWrite) % numOfChannels;
-		endState.endLSB = (sLSB + ((nextChanToWrite + (bitsToWrite % (LSBsToUse * numOfChannels))) /
-								   numOfChannels)) % LSBsToUse;
+		endState.endLSB = (sLSB + ((nextChanToWrite + (bitsToWrite % bitsPerPixel)) / numOfChannels)) % LSBsToUse;
 
 		return endState;
 	}

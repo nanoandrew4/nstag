@@ -16,7 +16,14 @@ import java.io.IOException;
 /**
  * This class is responsible for decoding data that was previously encoded into an audio file using AudEncoder.
  * Since data was only encoded in the right channel bytes, the decoder skips all left channel bits, meaning that
- * it moves in steps of two.
+ * it moves in steps of two. This decoder assumes that the audio file has two channels only, left and right, since most
+ * audio files are stereo (meaning they only have two channels).
+ * <p><br>
+ * It reads bits from the least significant bit(s) of each right channel byte. The number of least significant bits
+ * used to originally encode the data is decoded when initializing this class. For more information on how the data
+ * is encoded, see the Encoder class.
+ *
+ * @see nsteg.encoders.Encoder
  */
 public class AudDecoder extends Decoder {
 	// Holds the PCM data of the audio file
@@ -29,8 +36,8 @@ public class AudDecoder extends Decoder {
 	private int LSBsToUse = 1;
 
 	/**
-	 * Creates a new instance of AudDecoder, which loads the audio file to a byte array. The number of least
-	 * significant bits used during encoding is also read. Once this constructor is done, the decoder is ready.
+	 * Creates a new instance of AudDecoder, which reads the PCM data from an audio file and stores it in a byte array.
+	 * The number of least significant bits used during encoding is also read.
 	 *
 	 * @param audioFileName Name of the audio file to decode the PCM byte array from
 	 */
@@ -46,7 +53,8 @@ public class AudDecoder extends Decoder {
 				System.err.println("Error opening audio stream.");
 				return;
 			}
-			AudioInputStream decodedStream = AudioSystem.getAudioInputStream(AudioFormat.Encoding.PCM_SIGNED, rawStream);
+			AudioInputStream decodedStream = AudioSystem.getAudioInputStream(AudioFormat.Encoding.PCM_SIGNED,
+																			 rawStream);
 			this.encodedBytes = AudioProcessor.loadAudioFile(decodedStream);
 		}
 
@@ -66,8 +74,8 @@ public class AudDecoder extends Decoder {
 	}
 
 	/**
-	 * Decodes a specific number of bits from the PCM audio data, and returns them as an array. Only right channel bytes
-	 * are read from, since the encoder does not touch left channel bytes.
+	 * Decodes a specific number of bits from the PCM audio data, and returns them as an array. Only right channel
+	 * bytes are read from, since the encoder does not touch left channel bytes.
 	 *
 	 * @param bitsToRead Number of bits to read
 	 * @return Array containing the decoded bits, with the specified length
@@ -94,7 +102,7 @@ public class AudDecoder extends Decoder {
 
 	/**
 	 * Decodes a specific number of bytes from the PCM audio data, and returns it as an array. Uses
-	 * readBits(int bitsToRead) internally, to read each byte.
+	 * readBits(int bitsToRead) internally, to read each byte as eight bits.
 	 *
 	 * @param bytesToRead Number of bytes to read
 	 * @return Array containing the decoded bytes, with the specified length

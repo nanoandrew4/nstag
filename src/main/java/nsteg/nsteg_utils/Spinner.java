@@ -3,8 +3,8 @@ package nsteg.nsteg_utils;
 import javax.validation.constraints.NotNull;
 
 /**
- * Simple spinning icon made out of characters. Used while program is running long computations, so the user
- * feels like the program is running something vs just being stuck. Pretty meaningless, but hey, looks good!
+ * Simple spinning icon made out of characters. Used while program is running long computations, so the user feels
+ * like the program is running something vs just being stuck. Pretty meaningless, but hey, looks good!
  */
 public class Spinner extends Thread {
 	private static Thread t;

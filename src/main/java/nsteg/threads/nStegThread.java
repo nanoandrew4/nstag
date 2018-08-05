@@ -17,7 +17,8 @@ public class nStegThread extends Thread {
 		if (LSBsToUse > 0 && LSBsToUse < 9)
 			this.LSBsToUse = LSBsToUse;
 		else
-			System.err.println("Number of least significant bits to use is out of range, please input a number between 1 and 8");
+			System.err.println("Number of least significant bits to use is out of range, please input a number " +
+							   "between 1 and 8");
 	}
 
 	/**

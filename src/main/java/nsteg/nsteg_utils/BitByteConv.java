@@ -5,7 +5,7 @@ import javax.validation.constraints.NotNull;
 /**
  * Contains methods for transforming integers to bit arrays, and from bit arrays to integers.
  */
-public abstract class BitByteConv {
+public class BitByteConv {
 
 	/**
 	 * Converts a decimal number into an array of bits. Can handle both signed and unsigned binary numbers.
@@ -35,8 +35,8 @@ public abstract class BitByteConv {
 
 	/**
 	 * Converts an array of integers (containing exclusively binary numbers) to a decimal representation of itself.
-	 * Can handle conversion of both signed and unsigned binary numbers. Powers of two are handled through bit-shifting,
-	 * which is way faster than using Math.pow().
+	 * Can handle conversion of both signed and unsigned binary numbers. Powers of two are handled through
+	 * bit-shifting, which is way faster than using Math.pow().
 	 *
 	 * @param bits   Array of bits to be converted to a decimal integer
 	 * @param signed True for interpreting as a signed number, false to interpret as an unsigned number

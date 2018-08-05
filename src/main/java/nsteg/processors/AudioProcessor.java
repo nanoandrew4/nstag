@@ -152,7 +152,8 @@ public class AudioProcessor {
 		if ("wav".equalsIgnoreCase(fileExt))
 			writePCMToWAV(outName, audEncoder.getEncodedPCM(), audEncoder.getChannels(), audEncoder.getSampleRate());
 		else if ("flac".equalsIgnoreCase(fileExt))
-			writePCMToFLAC(outName, audEncoder.getEncodedPCM(), audEncoder.getBitsPerSample(), audEncoder.getChannels(), audEncoder.getSampleRate());
+			writePCMToFLAC(outName, audEncoder.getEncodedPCM(), audEncoder.getBitsPerSample(),
+						   audEncoder.getChannels(), audEncoder.getSampleRate());
 	}
 
 	/**
@@ -167,8 +168,7 @@ public class AudioProcessor {
 		AudioFormat f = new AudioFormat(sampleRate, 16, channels, true, false);
 		try {
 			AudioSystem.write(new AudioInputStream(new ByteArrayInputStream(pcm), f, pcm.length),
-					AudioFileFormat.Type.WAVE, new File(outName)
-			);
+							  AudioFileFormat.Type.WAVE, new File(outName));
 
 			Spinner.end();
 			System.out.println("Data encoded successfully into audio file \"" + outName + "\"");
@@ -185,7 +185,8 @@ public class AudioProcessor {
 	 * @param channels   Number of channels to use for encoding the FLAC file
 	 * @param sampleRate Sample rate to be used for encoding to FLAC
 	 */
-	private static void writePCMToFLAC(@NotNull String outName, @NotNull byte[] pcm, int bitsPerSample, int channels, int sampleRate) {
+	private static void writePCMToFLAC(@NotNull String outName, @NotNull byte[] pcm, int bitsPerSample, int channels,
+									   int sampleRate) {
 		AudioFormat f = new AudioFormat(sampleRate, bitsPerSample, channels, true, false);
 		AudioInputStream ais = new AudioInputStream(new ByteArrayInputStream(pcm), f, pcm.length);
 

@@ -185,7 +185,7 @@ public class CLIParser {
 			}
 		}
 
-		if (mediaInputFile.length() > 0 && mediaOutputFile.length() > 0 && filesToHide.length == 0 && LSBsToUse > 0) {
+		if (mediaInputFile.length() > 0 && mediaOutputFile.length() > 0 && filesToHide.length > 0 && LSBsToUse > 0) {
 			System.out.println();
 			Encoder.encode(mediaInputFile, filesToHide, mediaOutputFile, LSBsToUse, encrypt, pass);
 		} else

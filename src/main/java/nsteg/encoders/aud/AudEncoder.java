@@ -9,7 +9,6 @@ import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.UnsupportedAudioFileException;
-import javax.swing.*;
 import javax.validation.constraints.NotNull;
 import java.io.File;
 import java.io.IOException;
@@ -29,17 +28,16 @@ import java.io.IOException;
 public class AudEncoder extends Encoder {
 	private byte[] audBytes; // PCM data of the audio file that is to be used to encode data
 
-	// Position trackers, so that data can be written continuously
+	// Encoding position trackers, so that data can be written continuously
 	private int currLSB = 0, currByte = 0;
 	private int LSBsToUse = 1;
 
-	// Stored for writing to disk later
+	// Stored for re-encoding the audio file from the PCM bytes once the data encoding is done
 	private int channels, sampleRate, bitsPerSample;
 
 	/**
-	 * Creates a new instance of AudEncoder, which loads the requested file into a PCM byte array. Some metadata is also
-	 * read from the audio file for later encoding, to ensure the sound quality is as consistent as can be.
-	 * Once this constructor is done, the encoder is ready to encode any data.
+	 * Creates a new instance of AudEncoder, which loads the requested file into a PCM byte array. Some metadata is
+	 * also read from the audio file for later encoding, to ensure the sound quality is as consistent as can be.
 	 *
 	 * @param audioFileName Name of the audio file that is to be used for encoding
 	 * @param LSBsToUse     Number of least significant bits to use in the right channel (left is untouched)
@@ -63,7 +61,8 @@ public class AudEncoder extends Encoder {
 				return;
 			}
 
-			AudioInputStream decodedStream = AudioSystem.getAudioInputStream(AudioFormat.Encoding.PCM_SIGNED, rawStream);
+			AudioInputStream decodedStream = AudioSystem.getAudioInputStream(AudioFormat.Encoding.PCM_SIGNED,
+																			 rawStream);
 			initWithStream(decodedStream, LSBsToUse);
 		}
 	}
@@ -81,8 +80,8 @@ public class AudEncoder extends Encoder {
 	}
 
 	/*
-	 * Initializes some metadata variables for later use when re-encoding the PCM byte data to the user requested format,
-	 * as well as reading the PCM byte data from the audio stream.
+	 * Initializes some metadata variables for later use when re-encoding the PCM byte data to the user requested
+	 * format, as well as reading the PCM byte data from the audio stream.
 	 */
 	private void initWithStream(AudioInputStream audioStream, int LSBsToUse) {
 		this.channels = audioStream.getFormat().getChannels();
@@ -133,8 +132,8 @@ public class AudEncoder extends Encoder {
 
 	/**
 	 * Encodes the specified bits to the PCM byte array, by writing to the least significant bits of the right channel
-	 * (the program assumes a stereo audio file), which barely cause any distortion. All left channel bytes are skipped,
-	 * since even a minimal modification to that channel causes very audible distortions.
+	 * (the program assumes a stereo audio file), which barely cause any distortion. All left channel bytes are
+	 * skipped, since even a minimal modification to that channel causes very audible distortions.
 	 *
 	 * @param bits Array of bits to encode into the audio file
 	 */
@@ -143,7 +142,8 @@ public class AudEncoder extends Encoder {
 		while (currBitPos < bits.length) {
 			byte[] byteBits = BitByteConv.intToBitArray(audBytes[currByte], Byte.SIZE);
 
-			// Write bits to the least significant bit(s), until no more bits can be written to current byte, or all bits have been written
+			// Write bits to the least significant bit(s), until no more bits can be written to current byte, or all
+			// bits have been written
 			for (; currLSB < LSBsToUse && currBitPos < bits.length; currLSB++)
 				byteBits[byteBits.length - 1 - currLSB] = bits[currBitPos++];
 			audBytes[currByte] = (byte) BitByteConv.bitArrayToInt(byteBits, true);
@@ -167,7 +167,8 @@ public class AudEncoder extends Encoder {
 
 	// See abstract method for docs
 	public boolean doesFileFit(int fileSizeInBits, int numOfFiles, int LSBsToUse, boolean encrypted) {
-		long requiredBits = LSB_BITS_COUNT + (2 * SIZE_BITS_COUNT) + fileSizeInBits + SIZE_BITS_COUNT + (SIZE_BITS_COUNT * numOfFiles);
+		long requiredBits = LSB_BITS_COUNT + (2 * SIZE_BITS_COUNT) + fileSizeInBits + SIZE_BITS_COUNT +
+							(SIZE_BITS_COUNT * numOfFiles);
 		if (encrypted)
 			requiredBits += Crypto.GCM_AAD_SIZE + Crypto.AES_IV_SIZE + Crypto.SALT_SIZE_BITS;
 

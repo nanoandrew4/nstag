@@ -13,7 +13,7 @@ public class ImgThread extends nStegThread {
 	protected BufferedImage img;
 	protected ImgEndState endState = new ImgEndState();
 
-	protected int width, height;
+	protected int width;
 	protected int numOfChannels;
 
 	protected int sx, sy, currByte, endByte;
@@ -29,7 +29,6 @@ public class ImgThread extends nStegThread {
 		this.numOfChannels = numOfChannels;
 
 		width = img.getWidth();
-		height = img.getHeight();
 
 		this.setDaemon(true);
 	}

@@ -11,7 +11,6 @@ import java.util.ArrayDeque;
 public class ImgDecoderThread extends ImgThread {
 	private byte[] byteArr;
 
-	// Bits read from pixels are loaded to the buffer, for temporary storage, until the requested amount of them have been read
 	private ArrayDeque<Byte> buffer = new ArrayDeque<>();
 
 	/**
@@ -43,7 +42,8 @@ public class ImgDecoderThread extends ImgThread {
 	 * @return ImgEndState instance containing ending positions of the starting values passed, so that jobs can quickly
 	 * be submitted to other threads, without having to wait for this one to finish
 	 */
-	ImgEndState submitJob(@NotNull byte[] byteArr, @NotNull ArrayDeque<Byte> buffer, int sx, int sy, int bytesToRead, int byteStartPos) {
+	ImgEndState submitJob(@NotNull byte[] byteArr, @NotNull ArrayDeque<Byte> buffer, int sx, int sy, int bytesToRead,
+						  int byteStartPos) {
 		if (active) {
 			System.err.println("Thread was busy while attempting to submit job!");
 			return null;
@@ -63,7 +63,7 @@ public class ImgDecoderThread extends ImgThread {
 
 		int bitsPerPixel = numOfChannels * LSBsToUse;
 		int bitsToRead = bytesToRead * Byte.SIZE - this.buffer.size();
-		// Determine where the decoding process will end, so that other threads can be started where this one leaves off
+		// Determine where the decoding process will end, so that other threads can be started where this one ends
 		endState.endX = (sx + (bitsToRead / bitsPerPixel)) % width;
 		endState.endY = sy + (sx + (bitsToRead / bitsPerPixel)) / width;
 		endState.endLSB = bitsToRead % bitsPerPixel;
@@ -75,24 +75,28 @@ public class ImgDecoderThread extends ImgThread {
 	public void run() {
 		while (running) {
 			if (active) {
-				for (int y = sy; y < height && currByte < endByte; y++) {
-					for (int x = sx; x < width && currByte < endByte; ) {
-						// Read bits from the image
-						while (buffer.size() < BLOCK_SIZE && x < width)
-							ImgDecoder.extractDataFromPixel(buffer, img.getRGB(x++, y));
+				int x = sx, y = sy;
+				while (currByte < endByte) {
+					// Read bits from the image
+					while (buffer.size() < BLOCK_SIZE && x < width)
+						ImgDecoder.extractDataFromPixel(buffer, img.getRGB(x++, y));
 
-						// Assemble read bits into bytes and write them to the file byte array
-						while (buffer.size() >= Byte.SIZE && currByte < endByte)
-							byteArr[currByte++] = (byte) BitByteConv.bitArrayToInt(ImgDecoder.loadFromBuffer(buffer, Byte.SIZE), true);
+					if (x == width) {
+						x = 0;
+						y++;
 					}
-					sx = 0;
+
+					// Assemble read bits into bytes and write them to the file byte array
+					while (buffer.size() >= Byte.SIZE && currByte < endByte)
+						byteArr[currByte++] = (byte) BitByteConv.bitArrayToInt(
+								ImgDecoder.loadFromBuffer(buffer, Byte.SIZE), true);
 				}
 
 				// Clear buffer in case there are leftovers and this thread is reused
 				buffer.clear();
 				active = false;
 			} else
-				sleepMillis(10);
+				sleepMillis(5);
 		}
 	}
 }

@@ -10,6 +10,7 @@ import java.awt.image.BufferedImage;
 /**
  * This class will encode data to the specified image, using the specified number of least significant bit(s) in each
  * pixel to do so. It writes all data sequentially, so it should be decoded in that same order it was encoded, later on.
+ * For the encoding spec, see the Encoder class.
  * <p><br>
  * A nibble is required to store the number of LSBs in each channel that will be used for encoding, and subsequently,
  * decoding. In the event the image being worked on has three channels (RGB), the first two pixels are reserved for
@@ -17,13 +18,15 @@ import java.awt.image.BufferedImage;
  * channel, values are reset to start encoding at the third pixel, as if no data had been written yet. If the image has
  * four channels (ARGB), only the first pixel is used for encoding, and data encoding starts at the second pixel, which
  * means no space is wasted.
+ *
+ * @see Encoder
  */
 public class ImgEncoder extends Encoder {
-	private PxBitModder bitModder;
+	private PxBitModder bitModder; // For use by this class, to encode bits
 	private ImgEncoderThread[] encThreads = new ImgEncoderThread[Runtime.getRuntime().availableProcessors()];
 
 	private BufferedImage img; // Image to read (A)RGB data from and to write (A)RGB modified data to
-	private int x = 0, y = 0; // Current pixel coords
+	private int x = 0, y = 0; // Current pixel coordinates
 
 	/**
 	 * Initializes an ImgEncoder instance with the given image, determines the number of channels in the image,
@@ -38,6 +41,7 @@ public class ImgEncoder extends Encoder {
 
 		bitModder = new PxBitModder(numOfChannels, 1, 0, 0);
 		encodeBits(BitByteConv.intToBitArray(LSBsToUse, 4));
+
 		initThreads(numOfChannels, LSBsToUse);
 		bitModder.setLSBsToUse(LSBsToUse);
 
@@ -106,8 +110,11 @@ public class ImgEncoder extends Encoder {
 	}
 
 	/**
-	 * Encodes an array of bytes into the image, by breaking chunks of bytes into a bit array, and using
-	 * encodeBits(byte[] bitsToEncode) in order to carry out the encoding of that bit array.
+	 * Encodes an array of bytes into the image, breaking the bytes to write into chunks, and passing each chunk to a
+	 * thread for it to be carried out in parallel. This method returning does not ensure that the data has fully been
+	 * written to the image. After all that is to be encoded has been submitted, stopThreads() must be called in order
+	 * to wait for the threads to finish their work, and then shut them down. Once stopThreads() returns, the data
+	 * has been fully written to the image.
 	 *
 	 * @param bytesToEncode Array of bytes to be encoded in the image
 	 */
@@ -119,24 +126,25 @@ public class ImgEncoder extends Encoder {
 			// Number of bytes that the thread should write to the file byte array
 			approxBytesPerThread = approxBytesPerThread < remainingBytes ? approxBytesPerThread : remainingBytes;
 
-			for (int t = 0; t < encThreads.length; t++) {
+			for (int t = 0; t < encThreads.length; t = (t + 1) % encThreads.length) {
 				if (!encThreads[t].isActive()) {
 					ImgEndState endState = encThreads[t].submitJob(
 							bytesToEncode, currByte, approxBytesPerThread, x, y, bitModder.getCurrLSB(),
 							bitModder.getNextChanToWrite()
 					);
+
+					/*
+					 * The job submission will return where the job will end encoding, so that the next thread knows
+					 * where to start. The bit modder is updated too, in the event that more bits should be written
+					 * after this method finishes.
+					 */
 					x = endState.endX;
 					y = endState.endY;
-
 					bitModder.setCurrLSB(endState.endLSB);
 					bitModder.setNextChanToWrite(endState.endChan);
 					break;
-				}
-
-				if (t + 1 == encThreads.length) {
+				} else if (t + 1 == encThreads.length)
 					sleep(5);
-					t = 0;
-				}
 			}
 
 			currByte += approxBytesPerThread;
@@ -161,7 +169,7 @@ public class ImgEncoder extends Encoder {
 
 	/**
 	 * Stops all ImgEncoderThread instances. Must be called once this ImgEncoder instance has finished writing data,
-	 * otherwise the encoding will not complete successfully.
+	 * otherwise the encoding may not complete successfully.
 	 */
 	public void stopThreads() {
 		for (ImgEncoderThread t : encThreads) t.stopThread();
