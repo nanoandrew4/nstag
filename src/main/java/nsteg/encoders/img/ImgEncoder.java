@@ -54,9 +54,10 @@ public class ImgEncoder extends Encoder {
 	}
 
 	// See abstract method declaration
-	public boolean doesFileFit(int fileSizeInBits, int numOfFiles, int LSBsToUse, boolean encrypted) {
-		long requiredBits = LSB_BITS_COUNT + (2 * SIZE_BITS_COUNT) + fileSizeInBits + SIZE_BITS_COUNT +
-							(SIZE_BITS_COUNT * numOfFiles);
+	public boolean doesFileFit(int fileSizeInBits, int numOfFiles, int fileNameLengths, int LSBsToUse, boolean
+			encrypted) {
+		long requiredBits = LSB_BITS_COUNT + SIZE_BITS_COUNT + fileSizeInBits + SIZE_BITS_COUNT +
+							(SIZE_BITS_COUNT * numOfFiles) * 2 + fileNameLengths * Byte.SIZE;
 		if (encrypted)
 			requiredBits += Crypto.GCM_AAD_SIZE + Crypto.AES_IV_SIZE + Crypto.SALT_SIZE_BITS;
 

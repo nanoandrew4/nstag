@@ -98,19 +98,21 @@ public abstract class Encoder {
 	 * Determines if the file to be hidden actually fits in the media file chosen by the user. If it does not fit,
 	 * errors are printed and the encoding process will stop.
 	 *
-	 * @param fileSizeInBits Size of the file to be hidden, in bits. Aside from the space required to encode the data
-	 *                       itself, two 32 bit chunks are required to encode the compressed and uncompressed size of
-	 *                       of the data
-	 * @param numOfFiles     Number of files that are to be encoded. This is relevant because each file will require a
-	 *                       32 bit header, in which the size of the file is contained. This value is also encoded,
-	 *                       using 32 bits
-	 * @param LSBsToUse      Number of least significant bits to use during the encoding process. This value will be
-	 *                       encoded, using 4 bits
-	 * @param encrypted      True if encryption is to be used, false otherwise. If true, the AAD data, IV and salt must
-	 *                       be written. The number of bits they use can be seen in the Crypto class
+	 * @param fileSizeInBits  Size of the file to be hidden, in bits. Aside from the space required to encode the data
+	 *                        itself, one 32 bit chunks are required to encode the compressed size of of the data
+	 * @param numOfFiles      Number of files that are to be encoded. This is relevant because each file has its
+	 *                        length stored, which occupies 32 bits, as well as its name, whose length also
+	 *                        occupies 32 bits. This value is also encoded, using 32 bits
+	 * @param fileNameLengths Combined lengths of the names of the files that are to be encoded. This number
+	 *                        represents the number of bytes that are required to store all the file names, not bits
+	 * @param LSBsToUse       Number of least significant bits to use during the encoding process. This value will be
+	 *                        encoded, using 4 bits
+	 * @param encrypted       True if encryption is to be used, false otherwise. If true, the AAD data, IV and salt
+	 *                        must be written. The number of bits they use can be seen in the Crypto class
 	 * @return True if the file will fit inside the media file, false otherwise
 	 */
-	public abstract boolean doesFileFit(int fileSizeInBits, int numOfFiles, int LSBsToUse, boolean encrypted);
+	protected abstract boolean doesFileFit(int fileSizeInBits, int numOfFiles, int fileNameLengths, int LSBsToUse,
+										   boolean encrypted);
 
 	/**
 	 * Initializes and returns the encoder implementation capable of handling the media file entered by the user.
@@ -186,9 +188,13 @@ public abstract class Encoder {
 		int compSize = dataBytes.length + (encrypt ? Crypto.AES_IV_SIZE + Crypto.GCM_AAD_SIZE / Byte.SIZE : 0);
 		byte[] compFileSizeBits = BitByteConv.intToBitArray(compSize, Integer.SIZE);
 
+		int fileNameLengths = 0;
+		for (String s : filesToEncode)
+			fileNameLengths += s.length();
+
 		Encoder encoder = getEncoder(origMediaPath, LSBsToUse);
-		if (encoder == null || !encoder.doesFileFit(dataBytes.length * Byte.SIZE, filesToEncode.length, LSBsToUse,
-													encrypt))
+		if (encoder == null || !encoder.doesFileFit(dataBytes.length * Byte.SIZE, filesToEncode.length,
+													fileNameLengths, LSBsToUse, encrypt))
 			return;
 
 		byte[] saltBytes = null;
