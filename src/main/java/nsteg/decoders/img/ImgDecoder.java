@@ -127,7 +127,7 @@ public class ImgDecoder extends Decoder {
 
 		int currByte = 0;
 		int remainingBytes = bytesToRead;
-		int approxBytesPerThread = bytesToRead / decThreads.length + 1;
+		int approxBytesPerThread = bytesToRead / decThreads.length;
 		while (remainingBytes > 0) {
 			// Number of bytes that the thread should write to the file byte array
 			approxBytesPerThread = approxBytesPerThread < remainingBytes ? approxBytesPerThread : remainingBytes;

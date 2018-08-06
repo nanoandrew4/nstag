@@ -29,8 +29,7 @@ public class ImgEncoderThread extends ImgThread {
 	}
 
 	/**
-	 * Initializes a thread, and assigns the image that will be worked on, as well as setting up the thread safety
-	 * mechanism.
+	 * Initializes a thread, and assigns the image that will be worked on.
 	 *
 	 * @param img           BufferedImage object to encode the data to
 	 * @param numOfChannels Number of channels in the BufferedImage
@@ -93,27 +92,26 @@ public class ImgEncoderThread extends ImgThread {
 
 				/*
 				 * Determines if the pixel should be locked to prevent race conditions. Only necessary when working on
-				 * the first and last byte.
+				 * the first and last pixel that will be modified by this thread.
 				 */
 				boolean needsLocking;
+				int bitsPerPixel = numOfChannels * LSBsToUse;
 				int y = sy, x = sx;
 
+				bitModder.resetCurrBit();
 				while (bitModder.getCurrBit() < currByteBits.length) {
-					needsLocking = (bitModder.getCurrBit() < Byte.SIZE ||
-									bitModder.getCurrBit() > currByteBits.length - Byte.SIZE);
+					needsLocking = (bitModder.getCurrBit() < bitsPerPixel ||
+									bitModder.getCurrBit() >= currByteBits.length - bitsPerPixel);
 					if (needsLocking)
 						waitForLock(x, y);
-					img.setRGB(x, y, bitModder.insertDataToPixel(img.getRGB(x, y), currByteBits));
+					img.setRGB(x, y, bitModder.insertDataToPixel(img.getRGB(x, y), currByteBits)); // Fills pixel
 					if (needsLocking)
 						release();
 
-					// If all data has been read from the pixel, move to next one
-					if (bitModder.getCurrLSB() == LSBsToUse) {
-						bitModder.setCurrLSB(0);
-						if (++x == width) {
-							x = 0;
-							y++;
-						}
+					bitModder.setCurrLSB(0);
+					if (++x == width) {
+						x = 0;
+						y++;
 					}
 				}
 
@@ -126,7 +124,7 @@ public class ImgEncoderThread extends ImgThread {
 	/**
 	 * Submits a job for this thread to carry out. Initial encoding positions are given, and a imgEndState instance is
 	 * returned containing where the encoding process this thread will carry out will end, so that ImgEncoder can
-	 * submit more jobs without having to wait for this one to finish.
+	 * submit more jobs to other threads without having to wait for this one to finish.
 	 *
 	 * @param filesBytes      Byte array that was passed through the encodeBytes() method. Each thread will write
 	 *                        the bytes that correspond to it

@@ -97,7 +97,6 @@ public class Main {
 
 	private static void decode() {
 		String encodedImgPath;
-		String[] outFileNames;
 
 		System.out.println("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
 		System.out.println("Enter the filename of the image or audio file that you wish to decode data from.");
@@ -106,14 +105,8 @@ public class Main {
 		System.out.print(">> ");
 		encodedImgPath = getEncodedInputFile();
 
-		System.out.println("-------------------------------------------------------------------------------------------");
-		System.out.println("Enter the filename(s) you wish to store the decoded data under (with appropriate file extension).");
-		System.out.println("For multiple files, delimit with a comma (,) for each separate filename.");
-		System.out.print(">> ");
-		outFileNames = in.nextLine().split(",");
-
 		System.out.println("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
-		Decoder.decode(encodedImgPath, outFileNames, null, null);
+		Decoder.decode(encodedImgPath, null, null);
 	}
 
 	private static String getMediaInputFile() {

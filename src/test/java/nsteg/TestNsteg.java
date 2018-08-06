@@ -19,9 +19,11 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
 public class TestNsteg {
+	private boolean output = true;
+
 	private byte[] genRandData(int bytes) {
 		byte[] data = new byte[bytes];
-		Random rand = new Random();
+		Random rand = new Random(System.currentTimeMillis());
 		rand.nextBytes(data);
 
 		return data;
@@ -30,6 +32,7 @@ public class TestNsteg {
 	/**
 	 * Displays a visual comparison of two byte arrays at a bit level between a start point and an endpoint. Useful for
 	 * looking at file reassembly when debugging a failing encoder or decoder.
+	 *
 	 * @param arr1 Array to be displayed first
 	 * @param arr2 Array to be displayed second
 	 * @param sPos Position to start converting bytes to bits from, and displaying them
@@ -46,6 +49,19 @@ public class TestNsteg {
 			}
 			System.out.println();
 		}
+	}
+
+	@Test
+	// Helps in testing threaded encoding/decoding consistency, to check for race conditions
+	public void consistencyTest() {
+		output = false;
+		for (int i = 0; i < 100; i++) {
+			if (i % 10 == 0)
+				System.out.println("Consistency check: " + i + "% complete");
+			testImgEncDec();
+			testAudEncDec();
+		}
+		System.out.println("Consistency check completed successfully");
 	}
 
 	@Test
@@ -70,9 +86,14 @@ public class TestNsteg {
 
 				assertArrayEquals(data, decData);
 
-				System.out.println("Passed bpc " + bpc + " for " + (imgType == BufferedImage.TYPE_4BYTE_ABGR ? "A" : "") + "RGB encoding/decoding");
+				if (output)
+					System.out.println(
+							"Passed bpc " + bpc + " for " + (imgType == BufferedImage.TYPE_4BYTE_ABGR ? "A" : "") +
+							"RGB encoding/decoding"
+					);
 			}
-			System.out.println();
+			if (output)
+				System.out.println();
 		}
 	}
 
@@ -91,7 +112,7 @@ public class TestNsteg {
 			ae.stopThreads();
 
 			AudioFormat f = new AudioFormat(sampleAudio.getFormat().getSampleRate(), 16,
-					sampleAudio.getFormat().getChannels(), true, false
+											sampleAudio.getFormat().getChannels(), true, false
 			);
 
 			byte[] encData = ((AudEncoder) ae).getEncodedPCM();
@@ -103,9 +124,11 @@ public class TestNsteg {
 
 			assertArrayEquals(data, decData);
 
-			System.out.println("Passed bpc " + bpc + " for audio encoding/decoding");
+			if (output)
+				System.out.println("Passed bpc " + bpc + " for audio encoding/decoding");
 		}
-		System.out.println();
+		if (output)
+			System.out.println();
 	}
 
 	@Test

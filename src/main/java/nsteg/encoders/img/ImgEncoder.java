@@ -121,7 +121,7 @@ public class ImgEncoder extends Encoder {
 	public void encodeBytes(@NotNull byte[] bytesToEncode) {
 		int currByte = 0;
 		int remainingBytes = bytesToEncode.length;
-		int approxBytesPerThread = bytesToEncode.length / encThreads.length + 1;
+		int approxBytesPerThread = bytesToEncode.length / encThreads.length;
 		while (remainingBytes > 0) {
 			// Number of bytes that the thread should write to the file byte array
 			approxBytesPerThread = approxBytesPerThread < remainingBytes ? approxBytesPerThread : remainingBytes;

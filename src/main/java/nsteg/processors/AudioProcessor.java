@@ -17,6 +17,10 @@ import javax.sound.sampled.AudioSystem;
 import javax.validation.constraints.NotNull;
 import java.io.*;
 
+/**
+ * This class handles reading audio files from disk and loading them into a PCM byte array, as well as writing PCM byte
+ * arrays to audio files on disk.
+ */
 public class AudioProcessor {
 
 	/**

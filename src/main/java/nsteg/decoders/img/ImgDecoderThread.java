@@ -78,12 +78,12 @@ public class ImgDecoderThread extends ImgThread {
 				int x = sx, y = sy;
 				while (currByte < endByte) {
 					// Read bits from the image
-					while (buffer.size() < BLOCK_SIZE && x < width)
+					while (buffer.size() < BLOCK_SIZE) {
 						ImgDecoder.extractDataFromPixel(buffer, img.getRGB(x++, y));
-
-					if (x == width) {
-						x = 0;
-						y++;
+						if (x == width) {
+							x = 0;
+							y++;
+						}
 					}
 
 					// Assemble read bits into bytes and write them to the file byte array

@@ -13,20 +13,21 @@ import nsteg.nsteg_utils.BitByteConv;
  * @see ImgEncoderThread
  */
 public class PxBitModder {
-	private int numOfChannels, LSBsToUse;
+	private int LSBsToUse;
 	private int currBit = 0, currLSB, nextChanToWrite;
+	private boolean hasAlphaChan;
 
 	/**
 	 * Initializes a pixel bit modifier instance with the given values.
 	 *
 	 * @param numOfChannels Number of channels that should be written to, which is equal to the number of channels
-	 *                      that the image being modified has
-	 * @param LSBsToUse     Number of least significant bits to use for inserting bits
+	 *                      that the image being modified has. Used to determine
+	 * @param LSBsToUse     Number of least significant bits to use for inserting bits in each channel
 	 * @param startLSB      Least significant bit to start writing at
 	 * @param startChan     Channel to start writing at
 	 */
 	PxBitModder(int numOfChannels, int LSBsToUse, int startLSB, int startChan) {
-		this.numOfChannels = numOfChannels;
+		this.hasAlphaChan = numOfChannels == 4;
 		this.LSBsToUse = LSBsToUse;
 		this.currLSB = startLSB;
 		this.nextChanToWrite = startChan;
@@ -36,6 +37,11 @@ public class PxBitModder {
 		return currLSB;
 	}
 
+	/**
+	 * Sets the least significant bit that insertDataToPixel() will start inserting from, next time it is called.
+	 *
+	 * @param currLSB LSB to start working from when insertDataToPixel() is called next
+	 */
 	void setCurrLSB(int currLSB) {
 		this.currLSB = currLSB;
 	}
@@ -48,6 +54,10 @@ public class PxBitModder {
 		return nextChanToWrite;
 	}
 
+	/**
+	 * Sets the position that the array passed to insertDataToPixel() will be read from to 0. Should be used after an
+	 * array has been fully inserted (when currBit == bitsToWrite.length).
+	 */
 	void resetCurrBit() {
 		this.currBit = 0;
 	}
@@ -75,11 +85,11 @@ public class PxBitModder {
 	 */
 	int insertDataToPixel(int orig, byte[] bitsToWrite) {
 		byte[] aBits = null;
-		if (numOfChannels == 4)
-			aBits = BitByteConv.intToBitArray(((orig >> 24) & 0xff), Byte.SIZE); // Get original alpha bitsToWrite
-		byte[] rBits = BitByteConv.intToBitArray(((orig >> 16) & 0xff), Byte.SIZE); // Get original red bitsToWrite
-		byte[] gBits = BitByteConv.intToBitArray(((orig >> 8) & 0xff), Byte.SIZE); // Get original green bitsToWrite
-		byte[] bBits = BitByteConv.intToBitArray(orig & 0xff, Byte.SIZE); // Get original blue bitsToWrite
+		if (hasAlphaChan)
+			aBits = BitByteConv.intToBitArray(((orig >> 24) & 0xff), Byte.SIZE); // Get original alpha bits
+		byte[] rBits = BitByteConv.intToBitArray(((orig >> 16) & 0xff), Byte.SIZE); // Get original red bits
+		byte[] gBits = BitByteConv.intToBitArray(((orig >> 8) & 0xff), Byte.SIZE); // Get original green bits
+		byte[] bBits = BitByteConv.intToBitArray(orig & 0xff, Byte.SIZE); // Get original blue bits
 		// Mod bit values, in order to encode bitsToWrite from the buffer. Read method doc for more info
 		for (; currLSB < LSBsToUse && currBit < bitsToWrite.length; ) {
 			if (nextChanToWrite == 0) {
@@ -94,12 +104,12 @@ public class PxBitModder {
 
 			if (currBit < bitsToWrite.length && nextChanToWrite == 2) {
 				bBits[bBits.length - 1 - currLSB] = bitsToWrite[currBit++];
-				// If image has alpha channel, continue to it, otherwise change LSB and restart
-				nextChanToWrite = numOfChannels == 3 ? 0 : 3;
-				if (numOfChannels == 3) { // If no alpha channel, go on to next LSB, if possible
+				if (!hasAlphaChan) {
 					currLSB++;
+					nextChanToWrite = 0;
 					continue;
-				}
+				} else
+					nextChanToWrite = 3;
 			}
 
 			if (nextChanToWrite == 3 && currBit < bitsToWrite.length) {
@@ -109,8 +119,8 @@ public class PxBitModder {
 			}
 		}
 
-		// Return 32-bit int representing the color of the pixel, with the encoded bitsToWrite from the buffer
-		if (numOfChannels == 3)
+		// Return 32-bit int representing the color of the pixel, with the encoded bits
+		if (!hasAlphaChan)
 			return (BitByteConv.bitArrayToInt(rBits, false) << 16) |
 				   (BitByteConv.bitArrayToInt(gBits, false) << 8) | BitByteConv.bitArrayToInt(bBits, false);
 		else

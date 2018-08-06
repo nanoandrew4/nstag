@@ -62,7 +62,8 @@ public class CLIParser {
 		System.out.println(
 				"\t--hf:  File(s) to hide. To encode (hide) multiple files, delimit the\n" +
 				"\t       files with commas, and do not use spaces between filenames or \n" +
-				"\t       commas. Eg: \"test.txt,test.pdf,test.ppt\".\n"
+				"\t       commas. Eg: \"test.txt,test.pdf,test.ppt\". The file names will\n" +
+				"\t       be stored alongside the data, and used during the decoding process.\n"
 		);
 		System.out.println(
 				"\t--mof: Media output file. The media file with the encoded data will be\n" +
@@ -82,12 +83,6 @@ public class CLIParser {
 				"\t       nsteg will attempt to decode files.\n" +
 				"\t       Supported image codecs: " + supportedOutImgFormats + "\n" +
 				"\t       Supported audio codecs: " + supportedOutAudFormats + "\n"
-		);
-		System.out.println(
-				"\t--hf:  File names to assign to the decoded files. They will be decoded\n" +
-				"\t       in the same order they were encoded. If there are insufficient\n" +
-				"\t       names, the program will assign names in the following way:\n" +
-				"\t       \"nstegDecFile[file num].unknown\n"
 		);
 		System.out.println("Optional arguments:");
 		System.out.println(
@@ -122,7 +117,7 @@ public class CLIParser {
 
 	/**
 	 * Parses the required arguments from the ones provided by Main, and then attempts to encode with the variables
-	 * given.
+	 * given. Also checks input for validity
 	 *
 	 * @param args Arguments to parse
 	 */
@@ -200,7 +195,6 @@ public class CLIParser {
 	 */
 	private static void decode(String[] args) {
 		String encodedInputFile = "", pass = null;
-		String[] filesToDecode = {};
 		Boolean encrypt = null;
 
 		for (int i = 1; i < args.length; i += 2) {
@@ -216,9 +210,7 @@ public class CLIParser {
 					return;
 				}
 				encodedInputFile = args[i + 1];
-			} else if ("--hf".equals(args[i]))
-				filesToDecode = args[i + 1].split(",");
-			else if ("--enc".equals(args[i]))
+			} else if ("--enc".equals(args[i]))
 				encrypt = Boolean.valueOf(args[i + 1]);
 			else if ("--pass".equals(args[i]) && encrypt != null && encrypt)
 				pass = args[i + 1];
@@ -228,9 +220,9 @@ public class CLIParser {
 			}
 		}
 
-		if (encodedInputFile.length() > 0 && filesToDecode.length > 0) {
+		if (encodedInputFile.length() > 0) {
 			System.out.println();
-			Decoder.decode(encodedInputFile, filesToDecode, encrypt, pass);
+			Decoder.decode(encodedInputFile, encrypt, pass);
 		} else
 			System.err.println("Arguments missing. For help, please use the --help flag. Exiting.");
 	}

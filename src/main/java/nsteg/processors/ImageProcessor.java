@@ -8,6 +8,9 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 
+/**
+ * Handles writing images to disk.
+ */
 public class ImageProcessor {
 
 	/**

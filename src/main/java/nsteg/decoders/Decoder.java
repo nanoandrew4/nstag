@@ -83,13 +83,10 @@ public abstract class Decoder {
 
 	/**
 	 * Decodes file(s) from a media file that was encoded using this program. If the file(s) requires decryption, it
-	 * also allows the user to decrypt them, provided the data has not been tampered with.
+	 * also allows the user to decrypt them, provided the data has not been tampered with. For more info on how the
+	 * data was encoded, see the Encoder class.
 	 *
 	 * @param encodedMedFile Name of the media file containing the data that is to be decoded
-	 * @param outFileNames   Array of strings containing the desired names for the file(s) that will be decoded. The
-	 *                       ordering of the filenames should be the same as during the encoding process. If there are
-	 *                       more files than there are filenames, the files will be written to the disk in the
-	 *                       following format: nstegDecFile[iteration-num].unknown
 	 * @param decrypt        True to decrypt the file(s), false otherwise. May be null, in which case the user will
 	 *                       be asked if they want to decrypt the file(s) or not. This argument exists to allow the
 	 *                       program to be non-interactive, which is employed by CLIParser
@@ -97,9 +94,9 @@ public abstract class Decoder {
 	 *                       method will prompt the user for a password. Nulling this field is the safer approach,
 	 *                       since  it means the password remains in memory for a much shorter period of time. This
 	 *                       argument exists to allow the CLIParser to pass a password in, if the user chooses
+	 * @see Encoder
 	 */
-	public static void decode(@NotNull String encodedMedFile, @NotNull String[] outFileNames, Boolean decrypt,
-							  String pass) {
+	public static void decode(@NotNull String encodedMedFile, Boolean decrypt, String pass) {
 		if (decrypt == null)
 			decrypt = Crypto.offerToCrypt(false);
 
@@ -109,6 +106,13 @@ public abstract class Decoder {
 
 		Spinner.printWithSpinner("Extracting metadata from image... ");
 		int numOfFiles = BitByteConv.bitArrayToInt(decoder.readBits(SIZE_BITS_COUNT), true);
+
+		String[] fileNames = new String[numOfFiles];
+		for (int s = 0; s < numOfFiles; s++) {
+			int fileNameLen = BitByteConv.bitArrayToInt(decoder.readBits(SIZE_BITS_COUNT), true);
+			byte[] fileNameBytes = decoder.readBytes(fileNameLen);
+			fileNames[s] = new String(fileNameBytes);
+		}
 
 		int[] fileSizes = new int[numOfFiles];
 		int uncompFilesSize = 0;
@@ -132,7 +136,7 @@ public abstract class Decoder {
 		Spinner.end();
 		if (decrypt)
 			filesBytes = Crypto.decrypt(filesBytes, saltBytes, Crypto.genAAD(uncompFilesSizeBits, compFilesSizeBits),
-									   pass);
+										pass);
 
 		filesBytes = Compressor.decompress(filesBytes, uncompFilesSize);
 
@@ -141,8 +145,7 @@ public abstract class Decoder {
 			// Separate files from the continuous byte array, and write them to disk
 			int byteCount = 0;
 			for (int i = 0; i < numOfFiles; i++) {
-				String fileName = i < outFileNames.length ? outFileNames[i].trim() : "nstegDecFile" + i + ".unknown";
-				FileOutputStream fos = new FileOutputStream(fileName);
+				FileOutputStream fos = new FileOutputStream(fileNames[i]);
 
 				byte[] fileBytes = new byte[fileSizes[i]];
 				System.arraycopy(filesBytes, byteCount, fileBytes, 0, fileBytes.length);
@@ -155,8 +158,7 @@ public abstract class Decoder {
 			Spinner.end();
 			System.out.print("\nData written successfully into file(s): ");
 			for (int i = 0; i < numOfFiles; i++)
-				System.out.print("\"" + (i < outFileNames.length ? outFileNames[i] : "nstegDecFile" + i + ".unknown")
-								 + "\" ");
+				System.out.print("\"" + fileNames[i] + "\" ");
 			System.out.println("\nDone!\n");
 		} catch (IOException e) {
 			System.err.println("Could not write data to disk.");
