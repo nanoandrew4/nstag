@@ -23,9 +23,7 @@ Audio encoding/decoding: [https://github.com/nanoandrew4/nsteg/blob/master/AUD_E
 
 #### Encoding format
 
-This is the encoding format nsteg uses. 
-
-The first 4 bits written specify how many least significant bits were used. The next 32 bits specify the compressed size of the file that was encoded. The next 32 bits specify the uncompressed size of the file that was encoded. If encryption was used, the next 64 bits correspond to the salt which was used to hash the user input password and derive the key that encrypted the data. The remaining bits correspond to the file, and if it was encrypted, the initialization vector and additional associated data are bundled with it, for decryption later.
+This is the encoding format nsteg uses. For a more specific overview, check out the Encoder class, which lays out the spec in the class docs. The encode() method in the Encoder class should also be fairly readable, for a full understanding of the encoding order.
 
 ![Encoding format](https://raw.githubusercontent.com/nanoandrew4/nsteg/master/readme_res/encformat.png)
 
